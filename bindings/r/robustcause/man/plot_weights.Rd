@@ -11,3 +11,6 @@ plot_weights(object, ...)
 \description{
 Plots per-observation robustness weights from a fitted model.
 }
+\seealso{
+\code{\link{vcov_robust}}, \code{\link{confint_robust}}
+}

@@ -28,6 +28,11 @@ typedef enum rc_psi_type_t {
   RC_PSI_TUKEY_BISQUARE = 1
 } rc_psi_type_t;
 
+typedef enum rc_rlm_method_t {
+  RC_RLM_M = 0,
+  RC_RLM_MM = 1
+} rc_rlm_method_t;
+
 typedef enum rc_hc_type_t {
   RC_HC0 = 0,
   RC_HC1 = 1,
@@ -37,16 +42,6 @@ typedef enum rc_hc_type_t {
   RC_HC4M = 5,
   RC_HC5 = 6
 } rc_hc_type_t;
-
-typedef struct rc_rlm_options_t {
-  int add_intercept;
-  int maxit;
-  double tol;
-  double tuning;
-  double ridge;
-  double min_weight;
-  rc_psi_type_t psi;
-} rc_rlm_options_t;
 
 typedef struct rc_s_options_t {
   int add_intercept;
@@ -67,6 +62,18 @@ typedef struct rc_s_options_t {
   double min_weight;
   unsigned long long seed;
 } rc_s_options_t;
+
+typedef struct rc_rlm_options_t {
+  int add_intercept;
+  int maxit;
+  double tol;
+  double tuning;
+  double ridge;
+  double min_weight;
+  rc_psi_type_t psi;
+  rc_rlm_method_t method;
+  rc_s_options_t mm_s_options;
+} rc_rlm_options_t;
 
 ROBUSTCAUSE_API rc_rlm_options_t rc_default_rlm_options(void);
 ROBUSTCAUSE_API rc_s_options_t rc_default_s_options(void);

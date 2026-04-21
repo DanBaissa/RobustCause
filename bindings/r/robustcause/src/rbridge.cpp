@@ -32,28 +32,61 @@ robust::HCType parse_hc(const std::string& hc_type) {
   throw std::invalid_argument("Unknown HC type: " + hc_type);
 }
 
+robust::RlmMethod parse_method(const std::string& method) {
+  if (method == "m") {
+    return robust::RlmMethod::kM;
+  }
+  if (method == "mm") {
+    return robust::RlmMethod::kMM;
+  }
+  throw std::invalid_argument("Unknown RLM method: " + method);
+}
+
+robust::SEstControl parse_s_control(const Rcpp::List& control) {
+  robust::SEstControl s_ctl;
+  s_ctl.add_intercept = false;
+  s_ctl.n_starts = Rcpp::as<int>(control["n_starts"]);
+  s_ctl.n_best_starts = Rcpp::as<int>(control["n_best_starts"]);
+  s_ctl.max_refine = Rcpp::as<int>(control["max_refine"]);
+  s_ctl.max_scale_iter = Rcpp::as<int>(control["max_scale_iter"]);
+  s_ctl.tol = Rcpp::as<double>(control["tol"]);
+  s_ctl.scale_tol = Rcpp::as<double>(control["scale_tol"]);
+  s_ctl.c = Rcpp::as<double>(control["c"]);
+  s_ctl.b = Rcpp::as<double>(control["b"]);
+  s_ctl.ridge = Rcpp::as<double>(control["ridge"]);
+  s_ctl.min_weight = Rcpp::as<double>(control["min_weight"]);
+  s_ctl.seed = static_cast<std::uint64_t>(Rcpp::as<double>(control["seed"]));
+  s_ctl.use_fast_s = Rcpp::as<bool>(control["use_fast_s"]);
+  s_ctl.include_ols_start = Rcpp::as<bool>(control["include_ols_start"]);
+  s_ctl.fast_s_screen_subsets = Rcpp::as<int>(control["fast_s_screen_subsets"]);
+  s_ctl.fast_s_screen_iters = Rcpp::as<int>(control["fast_s_screen_iters"]);
+  s_ctl.fast_s_keep = Rcpp::as<int>(control["fast_s_keep"]);
+  return s_ctl;
+}
+
+robust::RlmControl parse_rlm_control(SEXP controlSEXP) {
+  const Rcpp::List control(controlSEXP);
+  robust::RlmControl ctl;
+  ctl.method = parse_method(Rcpp::as<std::string>(control["method"]));
+  ctl.psi = parse_psi(Rcpp::as<std::string>(control["psi"]));
+  ctl.tuning = Rcpp::as<double>(control["tuning"]);
+  ctl.maxit = Rcpp::as<int>(control["maxit"]);
+  ctl.tol = Rcpp::as<double>(control["tol"]);
+  ctl.add_intercept = Rcpp::as<bool>(control["add_intercept"]);
+  ctl.ridge = Rcpp::as<double>(control["ridge"]);
+  ctl.min_weight = Rcpp::as<double>(control["min_weight"]);
+  ctl.mm_s_control = parse_s_control(control["mm_s_control"]);
+  return ctl;
+}
+
 }  // namespace
 
 extern "C" SEXP rc_r_fit_rlm(SEXP xSEXP,
                              SEXP ySEXP,
-                             SEXP psiSEXP,
-                             SEXP tuningSEXP,
-                             SEXP maxitSEXP,
-                             SEXP tolSEXP,
-                             SEXP addInterceptSEXP,
-                             SEXP ridgeSEXP,
-                             SEXP minWeightSEXP) {
+                             SEXP controlSEXP) {
   arma::mat X = Rcpp::as<arma::mat>(xSEXP);
   arma::vec y = Rcpp::as<arma::vec>(ySEXP);
-
-  robust::RlmControl ctl;
-  ctl.psi = parse_psi(Rcpp::as<std::string>(psiSEXP));
-  ctl.tuning = Rcpp::as<double>(tuningSEXP);
-  ctl.maxit = Rcpp::as<int>(maxitSEXP);
-  ctl.tol = Rcpp::as<double>(tolSEXP);
-  ctl.add_intercept = Rcpp::as<bool>(addInterceptSEXP);
-  ctl.ridge = Rcpp::as<double>(ridgeSEXP);
-  ctl.min_weight = Rcpp::as<double>(minWeightSEXP);
+  robust::RlmControl ctl = parse_rlm_control(controlSEXP);
 
   robust::RlmResult fit = robust::fit_rlm(X, y, ctl);
 
@@ -66,46 +99,40 @@ extern "C" SEXP rc_r_fit_rlm(SEXP xSEXP,
     Rcpp::Named("scale") = fit.scale,
     Rcpp::Named("converged") = fit.converged,
     Rcpp::Named("iterations") = fit.iterations,
+    Rcpp::Named("method") = robust::rlm_method_name(fit.method),
+    Rcpp::Named("psi") = Rcpp::as<std::string>(Rcpp::List(controlSEXP)["psi"]),
     Rcpp::Named("coef_names") = R_NilValue
   );
 }
 
+extern "C" SEXP rc_r_vcov_rlm(SEXP xSEXP,
+                              SEXP ySEXP,
+                              SEXP controlSEXP,
+                              SEXP hcTypeSEXP) {
+  arma::mat X = Rcpp::as<arma::mat>(xSEXP);
+  arma::vec y = Rcpp::as<arma::vec>(ySEXP);
+  robust::RlmControl ctl = parse_rlm_control(controlSEXP);
+
+  robust::RlmResult fit = robust::fit_rlm(X, y, ctl);
+  return Rcpp::wrap(robust::vcov_hc(fit, parse_hc(Rcpp::as<std::string>(hcTypeSEXP)), ctl.ridge));
+}
+
 extern "C" SEXP rc_r_confint_rlm(SEXP xSEXP,
                                  SEXP ySEXP,
-                                 SEXP psiSEXP,
-                                 SEXP tuningSEXP,
-                                 SEXP maxitSEXP,
-                                 SEXP tolSEXP,
-                                 SEXP addInterceptSEXP,
-                                 SEXP ridgeSEXP,
-                                 SEXP minWeightSEXP,
+                                 SEXP controlSEXP,
                                  SEXP hcTypeSEXP,
                                  SEXP zcritSEXP) {
   arma::mat X = Rcpp::as<arma::mat>(xSEXP);
   arma::vec y = Rcpp::as<arma::vec>(ySEXP);
-
-  robust::RlmControl ctl;
-  ctl.psi = parse_psi(Rcpp::as<std::string>(psiSEXP));
-  ctl.tuning = Rcpp::as<double>(tuningSEXP);
-  ctl.maxit = Rcpp::as<int>(maxitSEXP);
-  ctl.tol = Rcpp::as<double>(tolSEXP);
-  ctl.add_intercept = Rcpp::as<bool>(addInterceptSEXP);
-  ctl.ridge = Rcpp::as<double>(ridgeSEXP);
-  ctl.min_weight = Rcpp::as<double>(minWeightSEXP);
-
+  robust::RlmControl ctl = parse_rlm_control(controlSEXP);
   robust::RlmResult fit = robust::fit_rlm(X, y, ctl);
-  robust::InferenceResult inf = robust::confint_normal(
-    fit,
-    parse_hc(Rcpp::as<std::string>(hcTypeSEXP)),
-    Rcpp::as<double>(zcritSEXP),
-    ctl.ridge
-  );
-
-  return Rcpp::List::create(
-    Rcpp::Named("vcov") = Rcpp::wrap(inf.vcov),
-    Rcpp::Named("se") = Rcpp::wrap(inf.se),
-    Rcpp::Named("ci") = Rcpp::wrap(inf.ci)
-  );
+  robust::InferenceResult inf = robust::confint_normal(fit,
+                                                       parse_hc(Rcpp::as<std::string>(hcTypeSEXP)),
+                                                       Rcpp::as<double>(zcritSEXP),
+                                                       ctl.ridge);
+  return Rcpp::List::create(Rcpp::Named("vcov") = Rcpp::wrap(inf.vcov),
+                            Rcpp::Named("se") = Rcpp::wrap(inf.se),
+                            Rcpp::Named("ci") = Rcpp::wrap(inf.ci));
 }
 
 extern "C" SEXP rc_r_fit_s_estimator(SEXP xSEXP,

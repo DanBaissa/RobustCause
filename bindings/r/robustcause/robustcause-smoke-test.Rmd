@@ -39,15 +39,20 @@ y[c(10, 50, 120, 200)] <- y[c(10, 50, 120, 200)] + c(8, -9, 7, -8)
 
 X <- cbind(x1 = x1, x2 = x2, x3 = x3)
 
-rlm_fit <- fit_rlm(X, y, psi = "huber", hc_type = "HC3")
+rlm_fit <- fit_rlm(X, y, method = "m", psi = "huber")
 rlm_fit
-confint(rlm_fit)
+confint(rlm_fit, hc_type = "HC3")
 ```
 
 ```{r}
-s_fit <- fit_s_estimator(X, y, n_starts = 100, fast_s_screen_subsets = 100, fast_s_keep = 20)
-s_fit
-head(s_fit$weights)
+mm_fit <- fit_rlm(
+  X,
+  y,
+  method = "mm",
+  mm_s_control = list(n_starts = 100, fast_s_screen_subsets = 100, fast_s_keep = 20)
+)
+mm_fit
+head(mm_fit$weights)
 ```
 
 ## Formula Interface
@@ -55,18 +60,27 @@ head(s_fit$weights)
 ```{r}
 dat <- data.frame(y = y, x1 = x1, x2 = x2, x3 = x3)
 
-rlm_formula <- fit_rlm(y ~ x1 + x2 + x3, data = dat, psi = "tukey_bisquare", hc_type = "HC4")
+rlm_formula <- fit_rlm(y ~ x1 + x2 + x3, data = dat, method = "mm")
 rlm_formula
+confint(rlm_formula, hc_type = "HC4")
 
 s_formula <- fit_s_estimator(y ~ x1 + x2 + x3, data = dat, n_starts = 80, fast_s_screen_subsets = 80)
 s_formula
+```
+
+## Robust SEs For `lm`
+
+```{r}
+lm_fit <- lm(y ~ x1 + x2 + x3, data = dat)
+vcov_robust(lm_fit, hc_type = "HC3")
+confint_robust(lm_fit, hc_type = "HC3")
 ```
 
 ## Weight Diagnostics
 
 ```{r}
 plot_weights(rlm_fit)
-plot_weights(s_fit)
+plot_weights(mm_fit)
 ```
 
 ## Quick Checks
@@ -74,9 +88,9 @@ plot_weights(s_fit)
 ```{r}
 stopifnot(length(rlm_fit$coef) == ncol(X) + 1)
 stopifnot(is.matrix(vcov(rlm_fit)))
-stopifnot(length(s_fit$coef) == ncol(X) + 1)
+stopifnot(length(mm_fit$coef) == ncol(X) + 1)
 stopifnot(all(is.finite(rlm_fit$coef)))
-stopifnot(all(is.finite(s_fit$coef)))
+stopifnot(all(is.finite(mm_fit$coef)))
 ```
 
 ## Local Run Notes

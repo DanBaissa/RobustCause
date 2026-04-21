@@ -5,7 +5,8 @@
 Current exported entry points:
 - `fit_rlm()`
 - `fit_s_estimator()`
-- `vcov()`, `confint()`, and `plot_weights()` methods for fitted objects
+- `vcov()`, `confint()`, and `plot_weights()` methods for fitted robust models
+- `vcov_robust()` and `confint_robust()` helpers for both `robustcause_rlm` and base `lm` objects
 
 The package compiles vendored copies of the current core sources so it can be
 built as a self-contained R package inside this repository.

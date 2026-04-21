@@ -8,6 +8,17 @@
 namespace robust {
 namespace {
 
+struct RlmFitState {
+  vec beta;
+  vec fitted;
+  vec resid;
+  vec weights;
+  vec hat;
+  double scale = std::numeric_limits<double>::quiet_NaN();
+  bool converged = false;
+  int iterations = 0;
+};
+
 inline double median_of_vector(std::vector<double> x) {
   if (x.empty()) {
     throw std::invalid_argument("median_of_vector: empty input");
@@ -145,6 +156,75 @@ inline vec omega_hc(const vec& e_working,
   }
 }
 
+inline vec sanitize_weights(vec w, double min_weight) {
+  w.transform([&](double wi) {
+    if (!std::isfinite(wi)) return min_weight;
+    return std::max(min_weight, wi);
+  });
+  return w;
+}
+
+inline RlmFitState run_irls(const mat& X,
+                            const vec& y,
+                            const RlmControl& ctl,
+                            const vec& beta_init,
+                            double fixed_scale) {
+  vec beta = beta_init;
+  vec fitted(X.n_rows, arma::fill::zeros);
+  vec resid(X.n_rows, arma::fill::zeros);
+  vec w(X.n_rows, arma::fill::ones);
+  vec u(X.n_rows, arma::fill::zeros);
+
+  const bool use_fixed_scale = std::isfinite(fixed_scale) && fixed_scale > 0.0;
+  double scale = fixed_scale;
+  bool converged = false;
+  int iterations = 0;
+
+  for (int iter = 0; iter < ctl.maxit; ++iter) {
+    fitted = X * beta;
+    resid = y - fitted;
+    scale = use_fixed_scale ? fixed_scale : mad_scale(resid);
+    if (!(scale > 0.0) || !std::isfinite(scale)) {
+      throw std::runtime_error("fit_rlm: invalid scale estimate");
+    }
+
+    u = resid / scale;
+    w = sanitize_weights(psi_weights(u, ctl.psi, ctl.tuning), ctl.min_weight);
+
+    const vec beta_new = solve_wls_active(X, y, w, ctl.min_weight, ctl.ridge);
+    const double denom = std::max(1.0, arma::abs(beta).max());
+    const double diff = arma::abs(beta_new - beta).max() / denom;
+    beta = beta_new;
+    iterations = iter + 1;
+
+    if (diff < ctl.tol) {
+      converged = true;
+      break;
+    }
+  }
+
+  fitted = X * beta;
+  resid = y - fitted;
+  scale = use_fixed_scale ? fixed_scale : mad_scale(resid);
+  if (!(scale > 0.0) || !std::isfinite(scale)) {
+    throw std::runtime_error("fit_rlm: invalid final scale estimate");
+  }
+
+  u = resid / scale;
+  w = sanitize_weights(psi_weights(u, ctl.psi, ctl.tuning), ctl.min_weight);
+
+  RlmFitState out;
+  out.beta = beta;
+  out.fitted = fitted;
+  out.resid = resid;
+  out.weights = w;
+  out.hat = hatvalues_weighted(X, w, ctl.min_weight, ctl.ridge);
+  out.scale = scale;
+  out.converged = converged;
+  out.iterations = iterations;
+  return out;
+}
+
 }  // namespace
 
 vec psi_weights(const vec& u, PsiType psi, double tuning) {
@@ -192,63 +272,37 @@ RlmResult fit_rlm(const mat& X_in, const vec& y, const RlmControl& ctl) {
     throw std::invalid_argument("fit_rlm: need n > p");
   }
 
-  vec beta;
-  const bool ok_ols = arma::solve(beta, X, y);
-  if (!ok_ols || !beta.is_finite()) {
-    throw std::runtime_error("fit_rlm: OLS init failed");
-  }
+  vec beta_init;
+  double fixed_scale = std::numeric_limits<double>::quiet_NaN();
 
-  vec fitted(n), resid(n), w(n), u(n);
-  double scale = std::numeric_limits<double>::quiet_NaN();
-  bool converged = false;
-  int iterations = 0;
-
-  for (int iter = 0; iter < ctl.maxit; ++iter) {
-    fitted = X * beta;
-    resid = y - fitted;
-    scale = mad_scale(resid);
-    if (!(scale > 0.0) || !std::isfinite(scale)) {
-      throw std::runtime_error("fit_rlm: invalid scale estimate");
+  if (ctl.method == RlmMethod::kMM) {
+    SEstControl s_ctl = ctl.mm_s_control;
+    s_ctl.add_intercept = false;
+    const SEstResult s_fit = fit_s_estimator(X, y, s_ctl);
+    if (!s_fit.coef.is_finite() || !(s_fit.scale > 0.0) || !std::isfinite(s_fit.scale)) {
+      throw std::runtime_error("fit_rlm: MM start from S-estimator failed");
     }
-
-    u = resid / scale;
-    w = psi_weights(u, ctl.psi, ctl.tuning);
-    w.transform([&](double wi) {
-      if (!std::isfinite(wi)) return ctl.min_weight;
-      return std::max(ctl.min_weight, wi);
-    });
-
-    const vec beta_new = solve_wls_active(X, y, w, ctl.min_weight, ctl.ridge);
-    const double denom = std::max(1.0, arma::abs(beta).max());
-    const double diff = arma::abs(beta_new - beta).max() / denom;
-    beta = beta_new;
-    iterations = iter + 1;
-
-    if (diff < ctl.tol) {
-      converged = true;
-      break;
+    beta_init = s_fit.coef;
+    fixed_scale = s_fit.scale;
+  } else {
+    const bool ok_ols = arma::solve(beta_init, X, y);
+    if (!ok_ols || !beta_init.is_finite()) {
+      throw std::runtime_error("fit_rlm: OLS init failed");
     }
   }
 
-  fitted = X * beta;
-  resid = y - fitted;
-  scale = mad_scale(resid);
-  u = resid / scale;
-  w = psi_weights(u, ctl.psi, ctl.tuning);
-  w.transform([&](double wi) {
-    if (!std::isfinite(wi)) return ctl.min_weight;
-    return std::max(ctl.min_weight, wi);
-  });
+  const RlmFitState fit_state = run_irls(X, y, ctl, beta_init, fixed_scale);
 
   RlmResult out;
-  out.coef = beta;
-  out.fitted = fitted;
-  out.resid = resid;
-  out.weights = w;
-  out.hat = hatvalues_weighted(X, w, ctl.min_weight, ctl.ridge);
-  out.scale = scale;
-  out.converged = converged;
-  out.iterations = iterations;
+  out.coef = fit_state.beta;
+  out.fitted = fit_state.fitted;
+  out.resid = fit_state.resid;
+  out.weights = fit_state.weights;
+  out.hat = fit_state.hat;
+  out.scale = fit_state.scale;
+  out.converged = fit_state.converged;
+  out.iterations = fit_state.iterations;
+  out.method = ctl.method;
   out.X = X;
   out.y = y;
   return out;
@@ -301,6 +355,14 @@ std::string hc_name(HCType type) {
     case HCType::kHC4: return "HC4";
     case HCType::kHC4m: return "HC4m";
     case HCType::kHC5: return "HC5";
+    default: return "UNKNOWN";
+  }
+}
+
+std::string rlm_method_name(RlmMethod method) {
+  switch (method) {
+    case RlmMethod::kM: return "M";
+    case RlmMethod::kMM: return "MM";
     default: return "UNKNOWN";
   }
 }

@@ -1,6 +1,8 @@
 #ifndef ROBUST_RLM_HC_HPP
 #define ROBUST_RLM_HC_HPP
 
+#include "robust_s_estimator.hpp"
+
 #include <RcppArmadillo.h>
 
 #include <limits>
@@ -16,6 +18,11 @@ enum class PsiType {
   kTukeyBisquare
 };
 
+enum class RlmMethod {
+  kM = 0,
+  kMM
+};
+
 enum class HCType {
   kHC0 = 0,
   kHC1,
@@ -27,6 +34,7 @@ enum class HCType {
 };
 
 struct RlmControl {
+  RlmMethod method = RlmMethod::kM;
   PsiType psi = PsiType::kHuber;
   double tuning = 1.345;
   int maxit = 100;
@@ -34,6 +42,7 @@ struct RlmControl {
   bool add_intercept = true;
   double ridge = 1e-10;
   double min_weight = 1e-12;
+  SEstControl mm_s_control = {};
 };
 
 struct RlmResult {
@@ -45,6 +54,7 @@ struct RlmResult {
   double scale = std::numeric_limits<double>::quiet_NaN();
   bool converged = false;
   int iterations = 0;
+  RlmMethod method = RlmMethod::kM;
   mat X;
   vec y;
 };
@@ -64,6 +74,7 @@ InferenceResult confint_normal(const RlmResult& fit,
 
 mat add_intercept(const mat& X);
 vec psi_weights(const vec& u, PsiType psi, double tuning);
+std::string rlm_method_name(RlmMethod method);
 std::string hc_name(HCType type);
 
 }  // namespace robust

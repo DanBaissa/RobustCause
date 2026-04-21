@@ -29,6 +29,8 @@ void require_not_null(const T* ptr, const char* name) {
   }
 }
 
+robust::SEstControl to_cpp(const rc_s_options_t& options);
+
 robust::PsiType to_cpp(rc_psi_type_t psi) {
   switch (psi) {
     case RC_PSI_HUBER:
@@ -37,6 +39,17 @@ robust::PsiType to_cpp(rc_psi_type_t psi) {
       return robust::PsiType::kTukeyBisquare;
     default:
       throw std::invalid_argument("unknown psi type");
+  }
+}
+
+robust::RlmMethod to_cpp(rc_rlm_method_t method) {
+  switch (method) {
+    case RC_RLM_M:
+      return robust::RlmMethod::kM;
+    case RC_RLM_MM:
+      return robust::RlmMethod::kMM;
+    default:
+      throw std::invalid_argument("unknown RLM method");
   }
 }
 
@@ -63,6 +76,7 @@ robust::HCType to_cpp(rc_hc_type_t hc) {
 
 robust::RlmControl to_cpp(const rc_rlm_options_t& options) {
   robust::RlmControl ctl;
+  ctl.method = to_cpp(options.method);
   ctl.psi = to_cpp(options.psi);
   ctl.tuning = options.tuning;
   ctl.maxit = options.maxit;
@@ -70,6 +84,7 @@ robust::RlmControl to_cpp(const rc_rlm_options_t& options) {
   ctl.add_intercept = options.add_intercept != 0;
   ctl.ridge = options.ridge;
   ctl.min_weight = options.min_weight;
+  ctl.mm_s_control = to_cpp(options.mm_s_options);
   return ctl;
 }
 
@@ -152,6 +167,8 @@ rc_rlm_options_t rc_default_rlm_options(void) {
   options.ridge = 1e-10;
   options.min_weight = 1e-12;
   options.psi = RC_PSI_HUBER;
+  options.method = RC_RLM_M;
+  options.mm_s_options = rc_default_s_options();
   return options;
 }
 
