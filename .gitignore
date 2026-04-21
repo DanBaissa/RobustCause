@@ -4,6 +4,7 @@
 .Ruserdata
 
 _bundle_inspect/
+.rlib/
 build/
 build-*/
 cmake-build-*/
