@@ -5,6 +5,7 @@ RobustCause is a C++ core library for robust causal-inference tooling, intended 
 The current focus is the numerical kernel:
 - robust linear regression with M and MM estimation
 - Tukey bisquare S-estimation for linear models
+- robust MM-DML for partially linear treatment-effect estimation
 - HC0-HC5 heteroskedasticity-consistent covariance estimators
 - a lightweight formula/data interface on the C++ side
 - a small C ABI that can be wrapped from `pybind11`, `Rcpp`, or direct FFI
@@ -15,12 +16,13 @@ The repository now includes:
 - a C++ core library with installable CMake packaging
 - an R package at `bindings/r/robustcause`
 - M-estimation and MM-estimation in `fit_rlm()`
+- MM-DML in `fit_mm_dml()`
 - a separate robust covariance layer so HC inference is not tied to fitting
 - robust covariance helpers for both RobustCause fits and base R `lm` objects
 - a GitHub-installing R Markdown notebook that acts as both a showcase and smoke test
 
 In the R package, the intended split is:
-- fitting: `fit_rlm(..., method = "m" | "mm")` and `fit_s_estimator(...)`
+- fitting: `fit_rlm(..., method = "m" | "mm")`, `fit_s_estimator(...)`, and `fit_mm_dml(...)`
 - inference: `vcov(..., hc_type = ...)`, `confint(..., hc_type = ...)`, `vcov_robust()`, and `confint_robust()`
 
 ## Design goals
@@ -73,6 +75,7 @@ The C ABI is deliberately matrix-first and column-major so it aligns well with A
 The R package currently provides:
 - `fit_rlm()` with `method = "m"` and `method = "mm"`
 - `fit_s_estimator()`
+- `fit_mm_dml()` for robust orthogonalized treatment-effect estimation
 - `vcov()` and `confint()` methods for robust fits with selectable HC type
 - `vcov_robust()` and `confint_robust()` for base `lm` objects
 - a smoke-test/showcase notebook at `bindings/r/robustcause/robustcause-smoke-test.Rmd`

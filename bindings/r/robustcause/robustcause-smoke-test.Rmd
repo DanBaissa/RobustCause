@@ -20,15 +20,27 @@ if (!requireNamespace("remotes", quietly = TRUE)) {
   install.packages("remotes", lib = pkg_lib, repos = "https://cloud.r-project.org")
 }
 
-remotes::install_github(
-  "DanBaissa/RobustCause",
-  subdir = "bindings/r/robustcause",
-  lib = pkg_lib,
-  upgrade = "never",
-  force = TRUE,
-  dependencies = TRUE,
-  quiet = TRUE
-)
+local_source <- Sys.getenv("ROBUSTCAUSE_LOCAL_SOURCE", unset = "")
+if (nzchar(local_source) && dir.exists(local_source)) {
+  remotes::install_local(
+    local_source,
+    lib = pkg_lib,
+    upgrade = "never",
+    force = TRUE,
+    dependencies = TRUE,
+    quiet = TRUE
+  )
+} else {
+  remotes::install_github(
+    "DanBaissa/RobustCause",
+    subdir = "bindings/r/robustcause",
+    lib = pkg_lib,
+    upgrade = "never",
+    force = TRUE,
+    dependencies = TRUE,
+    quiet = TRUE
+  )
+}
 
 set.seed(42)
 ```
@@ -107,6 +119,38 @@ s_formula <- robustcause::fit_s_estimator(y ~ x1 + x2 + x3, data = dat, n_starts
 s_formula
 ```
 
+## MM-DML Showcase
+
+```{r}
+d_treat <- 0.7 * x1 - 0.4 * x2 + 0.2 * rnorm(n)
+y_dml <- 1.5 * d_treat + 0.8 * x1 + 0.3 * x3 + rnorm(n, sd = 0.3)
+X_dml <- cbind(x1 = x1, x2 = x2, x3 = x3)
+dat_dml <- data.frame(y = y_dml, d = d_treat, x1 = x1, x2 = x2, x3 = x3)
+
+mm_dml_matrix <- robustcause::fit_mm_dml(
+  x = X_dml,
+  d = d_treat,
+  y = y_dml,
+  learner = "lasso",
+  folds = 3L,
+  seed = 13L
+)
+mm_dml_matrix
+```
+
+```{r}
+mm_dml_data <- robustcause::fit_mm_dml(
+  data = dat_dml,
+  outcome = "y",
+  treatment = "d",
+  controls = c("x1", "x2", "x3"),
+  learner = "elastic_net",
+  folds = 3L,
+  seed = 21L
+)
+mm_dml_data
+```
+
 ## Robust Covariance Showcase
 
 ```{r}
@@ -146,6 +190,8 @@ stopifnot(length(mm_fit$coef) == ncol(X) + 1)
 stopifnot(length(s_fit$coef) == ncol(X) + 1)
 stopifnot(is.matrix(vcov(m_huber_fit)))
 stopifnot(is.matrix(robustcause::vcov_robust(ols_fit, hc_type = "HC5")))
+stopifnot(is.finite(mm_dml_matrix$tau_hat))
+stopifnot(is.finite(mm_dml_data$tau_hat))
 stopifnot(all(is.finite(m_huber_fit$coef)))
 stopifnot(all(is.finite(m_tukey_fit$coef)))
 stopifnot(all(is.finite(mm_fit$coef)))

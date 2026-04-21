@@ -369,15 +369,27 @@ if (!requireNamespace(&quot;remotes&quot;, quietly = TRUE)) {
   install.packages(&quot;remotes&quot;, lib = pkg_lib, repos = &quot;https://cloud.r-project.org&quot;)
 }
 
-remotes::install_github(
-  &quot;DanBaissa/RobustCause&quot;,
-  subdir = &quot;bindings/r/robustcause&quot;,
-  lib = pkg_lib,
-  upgrade = &quot;never&quot;,
-  force = TRUE,
-  dependencies = TRUE,
-  quiet = TRUE
-)
+local_source &lt;- Sys.getenv(&quot;ROBUSTCAUSE_LOCAL_SOURCE&quot;, unset = &quot;&quot;)
+if (nzchar(local_source) &amp;&amp; dir.exists(local_source)) {
+  remotes::install_local(
+    local_source,
+    lib = pkg_lib,
+    upgrade = &quot;never&quot;,
+    force = TRUE,
+    dependencies = TRUE,
+    quiet = TRUE
+  )
+} else {
+  remotes::install_github(
+    &quot;DanBaissa/RobustCause&quot;,
+    subdir = &quot;bindings/r/robustcause&quot;,
+    lib = pkg_lib,
+    upgrade = &quot;never&quot;,
+    force = TRUE,
+    dependencies = TRUE,
+    quiet = TRUE
+  )
+}
 
 set.seed(42)</code></pre>
 <div id="matrix-interface" class="section level2">
@@ -546,6 +558,58 @@ s_formula
 #&gt; attr(,&quot;names&quot;)
 #&gt; [1] &quot;(Intercept)&quot; &quot;x1&quot;          &quot;x2&quot;          &quot;x3&quot;</code></pre>
 </div>
+<div id="mm-dml-showcase" class="section level2">
+<h2>MM-DML Showcase</h2>
+<pre class="r"><code>d_treat &lt;- 0.7 * x1 - 0.4 * x2 + 0.2 * rnorm(n)
+y_dml &lt;- 1.5 * d_treat + 0.8 * x1 + 0.3 * x3 + rnorm(n, sd = 0.3)
+X_dml &lt;- cbind(x1 = x1, x2 = x2, x3 = x3)
+dat_dml &lt;- data.frame(y = y_dml, d = d_treat, x1 = x1, x2 = x2, x3 = x3)
+
+mm_dml_matrix &lt;- robustcause::fit_mm_dml(
+  x = X_dml,
+  d = d_treat,
+  y = y_dml,
+  learner = &quot;lasso&quot;,
+  folds = 3L,
+  seed = 13L
+)
+mm_dml_matrix
+#&gt; RobustCause MM-DML fit | Learner: lasso | Folds: 3 | N: 250
+#&gt; 
+#&gt; Call:
+#&gt; robustcause::fit_mm_dml(x = X_dml, d = d_treat, y = y_dml, learner = &quot;lasso&quot;, 
+#&gt;     folds = 3L, seed = 13L)
+#&gt; 
+#&gt; Coefficients:
+#&gt;               Estimate Std. Error    lower    upper
+#&gt; (Intercept) 0.00596394         NA       NA       NA
+#&gt; treatment   1.60278258 0.09493352 1.416716 1.788849
+#&gt; 
+#&gt; Converged: TRUE | Iterations: 10 | Objective: 0.068816 | Kept fraction: 1.000</code></pre>
+<pre class="r"><code>mm_dml_data &lt;- robustcause::fit_mm_dml(
+  data = dat_dml,
+  outcome = &quot;y&quot;,
+  treatment = &quot;d&quot;,
+  controls = c(&quot;x1&quot;, &quot;x2&quot;, &quot;x3&quot;),
+  learner = &quot;elastic_net&quot;,
+  folds = 3L,
+  seed = 21L
+)
+mm_dml_data
+#&gt; RobustCause MM-DML fit | Learner: elastic_net | Folds: 3 | N: 250
+#&gt; 
+#&gt; Call:
+#&gt; robustcause::fit_mm_dml(data = dat_dml, outcome = &quot;y&quot;, treatment = &quot;d&quot;, 
+#&gt;     controls = c(&quot;x1&quot;, &quot;x2&quot;, &quot;x3&quot;), learner = &quot;elastic_net&quot;, 
+#&gt;     folds = 3L, seed = 21L)
+#&gt; 
+#&gt; Coefficients:
+#&gt;                Estimate Std. Error    lower    upper
+#&gt; (Intercept) 0.004933748         NA       NA       NA
+#&gt; treatment   1.580729764 0.09335549 1.397756 1.763703
+#&gt; 
+#&gt; Converged: TRUE | Iterations: 11 | Objective: 0.067035 | Kept fraction: 1.000</code></pre>
+</div>
 <div id="robust-covariance-showcase" class="section level2">
 <h2>Robust Covariance Showcase</h2>
 <pre class="r"><code>hc_types &lt;- c(&quot;HC0&quot;, &quot;HC1&quot;, &quot;HC2&quot;, &quot;HC3&quot;, &quot;HC4&quot;, &quot;HC4m&quot;, &quot;HC5&quot;)
@@ -597,6 +661,8 @@ stopifnot(length(mm_fit$coef) == ncol(X) + 1)
 stopifnot(length(s_fit$coef) == ncol(X) + 1)
 stopifnot(is.matrix(vcov(m_huber_fit)))
 stopifnot(is.matrix(robustcause::vcov_robust(ols_fit, hc_type = &quot;HC5&quot;)))
+stopifnot(is.finite(mm_dml_matrix$tau_hat))
+stopifnot(is.finite(mm_dml_data$tau_hat))
 stopifnot(all(is.finite(m_huber_fit$coef)))
 stopifnot(all(is.finite(m_tukey_fit$coef)))
 stopifnot(all(is.finite(mm_fit$coef)))
