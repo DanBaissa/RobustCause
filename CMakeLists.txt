@@ -12,6 +12,8 @@ option(ROBUSTCAUSE_BUILD_CAPI "Build the C ABI layer for language bindings" ON)
 find_package(Armadillo REQUIRED)
 
 set(ROBUSTCAUSE_SOURCES
+  src/robust_adstock.cpp
+  src/robust_mmm.cpp
   src/robust_rlm_hc.cpp
   src/robust_s_estimator.cpp
 )
@@ -43,6 +45,12 @@ if(ROBUSTCAUSE_BUILD_EXAMPLES)
 
   add_executable(example_rlm_hc examples/example_rlm_hc.cpp)
   target_link_libraries(example_rlm_hc PRIVATE RobustCause::robustcause)
+
+  add_executable(example_adstock examples/example_adstock.cpp)
+  target_link_libraries(example_adstock PRIVATE RobustCause::robustcause)
+
+  add_executable(example_mmm examples/example_mmm.cpp)
+  target_link_libraries(example_mmm PRIVATE RobustCause::robustcause)
 
   if(ROBUSTCAUSE_BUILD_CAPI)
     add_executable(example_capi examples/example_capi.cpp)

@@ -3,6 +3,8 @@
 RobustCause is a C++ core library for robust causal-inference tooling, intended to sit underneath R and Python frontends.
 
 The current focus is the numerical kernel:
+- robust adstock construction with optional S/MM precleaning
+- robust MMM fitting with per-channel cleaning, carryover, Hill saturation, and robust regression
 - robust linear regression with M and MM estimation
 - Tukey bisquare S-estimation for linear models
 - robust MM-DML for partially linear treatment-effect estimation
@@ -14,6 +16,8 @@ The current focus is the numerical kernel:
 
 The repository now includes:
 - a C++ core library with installable CMake packaging
+- a robust adstock module in the shared C++ core
+- a robust MMM module in the shared C++ core
 - an R package at `bindings/r/robustcause`
 - M-estimation and MM-estimation in `fit_rlm()`
 - MM-DML in `fit_mm_dml()`
@@ -76,11 +80,29 @@ The R package currently provides:
 - `fit_rlm()` with `method = "m"` and `method = "mm"`
 - `fit_s_estimator()`
 - `fit_mm_dml()` for robust orthogonalized treatment-effect estimation
+- `build_adstock()` for robust carryover construction
+- `fit_mmm()` for multi-channel MMM fitting
 - `vcov()` and `confint()` methods for robust fits with selectable HC type
 - `vcov_robust()` and `confint_robust()` for base `lm` objects
 - a smoke-test/showcase notebook at `bindings/r/robustcause/robustcause-smoke-test.Rmd`
 
 The notebook installs the package from GitHub before running, so it doubles as an end-to-end installation check.
+
+## Adstock API
+
+The shared C++ core now also exposes:
+- `build_adstock(...)`
+- `build_robust_adstock(...)`
+- `preclean_signal_s(...)`
+- `preclean_signal_mm(...)`
+- `fit_mmm(...)`
+
+The adstock module supports plain, Huber, tanh, softsign, and adaptive-clip increment rules, plus optional first-step S or MM signal cleaning before stock accumulation.
+
+The MMM module builds on top of those adstock primitives and adds:
+- per-channel precleaning
+- per-channel Hill saturation
+- final OLS, Huber, S, or MM regression
 
 ## Next recommended steps
 

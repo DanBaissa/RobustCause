@@ -610,6 +610,195 @@ mm_dml_data
 #&gt; 
 #&gt; Converged: TRUE | Iterations: 11 | Objective: 0.067035 | Kept fraction: 1.000</code></pre>
 </div>
+<div id="adstock-showcase" class="section level2">
+<h2>Adstock Showcase</h2>
+<pre class="r"><code>signal_media &lt;- c(10, 12, 70, 11, 9, 55, 8, 7)
+unit_media &lt;- c(1, 1, 1, 1, 2, 2, 2, 2)
+trend &lt;- c(0, 1, 2, 3, 0, 1, 2, 3)
+x_media &lt;- cbind(&quot;(Intercept)&quot; = 1, trend = trend)
+ad_dat &lt;- data.frame(
+  signal = signal_media,
+  unit = unit_media,
+  trend = trend
+)
+
+plain_adstock &lt;- robustcause::build_adstock(
+  signal = signal_media,
+  unit_ids = unit_media,
+  rho = 0.8,
+  increment_method = &quot;plain&quot;
+)
+
+robust_adstock &lt;- robustcause::build_adstock(
+  signal = signal_media,
+  unit_ids = unit_media,
+  x_preclean = x_media,
+  preclean = TRUE,
+  preclean_method = &quot;mm&quot;,
+  nonnegative = TRUE,
+  rho = 0.8,
+  increment_method = &quot;huber&quot;,
+  clip_c = 15
+)
+
+robust_adstock_df &lt;- robustcause::build_adstock(
+  data = ad_dat,
+  signal_col = &quot;signal&quot;,
+  unit_col = &quot;unit&quot;,
+  controls = &quot;trend&quot;,
+  preclean = TRUE,
+  preclean_method = &quot;s&quot;,
+  rho = 0.75,
+  increment_method = &quot;adaptive_clip&quot;
+)
+
+plain_adstock
+#&gt; RobustCause adstock fit
+#&gt; N: 8 
+#&gt; Preclean: none 
+#&gt; Increment: plain 
+#&gt; Rho: 0.8 
+#&gt; 
+#&gt; Head of stock:
+#&gt; [1] 10.0 20.0 86.0 79.8  9.0 62.2
+robust_adstock
+#&gt; RobustCause adstock fit
+#&gt; N: 8 
+#&gt; Preclean: mm 
+#&gt; Increment: huber 
+#&gt; Rho: 0.8 
+#&gt; 
+#&gt; Head of stock:
+#&gt; [1] 10.0 20.0 31.0 35.8  9.0 22.2
+summary(robust_adstock_df)
+#&gt; RobustCause adstock summary
+#&gt; 
+#&gt; Call:
+#&gt; robustcause::build_adstock(data = ad_dat, signal_col = &quot;signal&quot;, 
+#&gt;     unit_col = &quot;unit&quot;, controls = &quot;trend&quot;, preclean = TRUE, preclean_method = &quot;s&quot;, 
+#&gt;     rho = 0.75, increment_method = &quot;adaptive_clip&quot;)
+#&gt; 
+#&gt; N: 8 
+#&gt; Preclean: s 
+#&gt; Increment: adaptive_clip 
+#&gt; Rho: 0.75 
+#&gt; Mean cleaning shift: 11.7792 
+#&gt; Max absolute cleaning shift: 55.0058 
+#&gt; 
+#&gt; Stock summary:
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#&gt;    9.00   17.12   23.71   21.80   26.66   33.21</code></pre>
+<pre class="r"><code>adstock_compare &lt;- cbind(
+  signal = signal_media,
+  cleaned = round(robust_adstock$cleaned_signal, 3),
+  plain_stock = round(plain_adstock$stock, 3),
+  robust_stock = round(robust_adstock$stock, 3)
+)
+
+adstock_compare
+#&gt;      signal cleaned plain_stock robust_stock
+#&gt; [1,]     10  10.000      10.000       10.000
+#&gt; [2,]     12  12.000      20.000       20.000
+#&gt; [3,]     70  16.122      86.000       31.000
+#&gt; [4,]     11  11.000      79.800       35.800
+#&gt; [5,]      9   9.000       9.000        9.000
+#&gt; [6,]     55  16.486      62.200       22.200
+#&gt; [7,]      8   8.000      57.760       25.760
+#&gt; [8,]      7   7.000      53.208       27.608</code></pre>
+</div>
+<div id="mmm-showcase" class="section level2">
+<h2>MMM Showcase</h2>
+<pre class="r"><code>set.seed(7)
+n_units &lt;- 40
+n_periods &lt;- 6
+n_obs &lt;- n_units * n_periods
+unit_mmm &lt;- rep(seq_len(n_units), each = n_periods)
+time_mmm &lt;- rep(seq_len(n_periods), times = n_units)
+base_x1 &lt;- rnorm(n_units)
+x1_mmm &lt;- rep(base_x1, each = n_periods) + rnorm(n_obs, sd = 0.2)
+x2_mmm &lt;- sin(time_mmm / 2) + rnorm(n_obs, sd = 0.2)
+
+channel_1 &lt;- exp(0.4 + 0.35 * x1_mmm + 0.15 * x2_mmm + rnorm(n_obs, sd = 0.15))
+channel_2 &lt;- exp(0.3 + 0.25 * x2_mmm + rnorm(n_obs, sd = 0.15))
+channel_3 &lt;- exp(0.2 + 0.20 * x1_mmm + 0.20 * x2_mmm + rnorm(n_obs, sd = 0.15))
+channel_1[sample.int(n_obs, 4)] &lt;- channel_1[sample.int(n_obs, 4)] * 8
+channel_2[sample.int(n_obs, 4)] &lt;- 0
+
+stock_1 &lt;- ave(channel_1, unit_mmm, FUN = function(z) stats::filter(z, filter = 0.8, method = &quot;recursive&quot;, init = 0))
+stock_2 &lt;- ave(channel_2, unit_mmm, FUN = function(z) stats::filter(z, filter = 0.75, method = &quot;recursive&quot;, init = 0))
+stock_3 &lt;- ave(channel_3, unit_mmm, FUN = function(z) stats::filter(z, filter = 0.7, method = &quot;recursive&quot;, init = 0))
+
+hill &lt;- function(x, lambda) x / (1 + lambda * x)
+y_mmm &lt;- 1 +
+  0.9 * hill(as.numeric(stock_1), 0.12) +
+  0.6 * hill(as.numeric(stock_2), 0.10) +
+  0.5 * hill(as.numeric(stock_3), 0.08) +
+  0.4 * x1_mmm - 0.2 * x2_mmm + rt(n_obs, df = 4)
+
+mmm_dat &lt;- data.frame(
+  y = y_mmm,
+  unit = unit_mmm,
+  x1 = x1_mmm,
+  x2 = x2_mmm,
+  channel_1 = channel_1,
+  channel_2 = channel_2,
+  channel_3 = channel_3
+)
+
+mmm_fit &lt;- robustcause::fit_mmm(
+  data = mmm_dat,
+  outcome = &quot;y&quot;,
+  unit = &quot;unit&quot;,
+  channel_cols = c(&quot;channel_1&quot;, &quot;channel_2&quot;, &quot;channel_3&quot;),
+  preclean_cols = c(&quot;x1&quot;, &quot;x2&quot;),
+  control_cols = c(&quot;x1&quot;, &quot;x2&quot;),
+  fit_method = &quot;huber&quot;,
+  rho = c(0.8, 0.75, 0.7),
+  increment_method = c(&quot;adaptive_clip&quot;, &quot;huber&quot;, &quot;tanh&quot;),
+  hill_lambda = c(0.12, 0.10, 0.08),
+  preclean = c(TRUE, TRUE, TRUE),
+  preclean_method = c(&quot;mm&quot;, &quot;mm&quot;, &quot;s&quot;),
+  clip_c = c(1.5, 12, 2.0),
+  seed = 99L
+)
+
+mmm_fit
+#&gt; RobustCause MMM fit
+#&gt; N: 240 
+#&gt; Fit method: huber 
+#&gt; 
+#&gt; Channel coefficients:
+#&gt; channel_1 channel_2 channel_3 
+#&gt; 0.6162595 0.4713742 1.0335214
+summary(mmm_fit)
+#&gt; RobustCause MMM summary
+#&gt; 
+#&gt; Call:
+#&gt; robustcause::fit_mmm(data = mmm_dat, outcome = &quot;y&quot;, unit = &quot;unit&quot;, 
+#&gt;     channel_cols = c(&quot;channel_1&quot;, &quot;channel_2&quot;, &quot;channel_3&quot;), 
+#&gt;     preclean_cols = c(&quot;x1&quot;, &quot;x2&quot;), control_cols = c(&quot;x1&quot;, &quot;x2&quot;), 
+#&gt;     fit_method = &quot;huber&quot;, rho = c(0.8, 0.75, 0.7), increment_method = c(&quot;adaptive_clip&quot;, 
+#&gt;         &quot;huber&quot;, &quot;tanh&quot;), hill_lambda = c(0.12, 0.1, 0.08), preclean = c(TRUE, 
+#&gt;         TRUE, TRUE), preclean_method = c(&quot;mm&quot;, &quot;mm&quot;, &quot;s&quot;), clip_c = c(1.5, 
+#&gt;         12, 2), seed = 99L)
+#&gt; 
+#&gt; Fit ok: TRUE 
+#&gt; N: 240 
+#&gt; Fit method: huber 
+#&gt; Regression scale: 1.16591 
+#&gt; 
+#&gt; Channel coefficients:
+#&gt; channel_1 channel_2 channel_3 
+#&gt; 0.6162595 0.4713742 1.0335214</code></pre>
+<pre class="r"><code>round(cbind(
+  estimate = mmm_fit$channel_coef,
+  truth = c(0.9, 0.6, 0.5)
+), 3)
+#&gt;           estimate truth
+#&gt; channel_1    0.616   0.9
+#&gt; channel_2    0.471   0.6
+#&gt; channel_3    1.034   0.5</code></pre>
+</div>
 <div id="robust-covariance-showcase" class="section level2">
 <h2>Robust Covariance Showcase</h2>
 <pre class="r"><code>hc_types &lt;- c(&quot;HC0&quot;, &quot;HC1&quot;, &quot;HC2&quot;, &quot;HC3&quot;, &quot;HC4&quot;, &quot;HC4m&quot;, &quot;HC5&quot;)
@@ -663,6 +852,12 @@ stopifnot(is.matrix(vcov(m_huber_fit)))
 stopifnot(is.matrix(robustcause::vcov_robust(ols_fit, hc_type = &quot;HC5&quot;)))
 stopifnot(is.finite(mm_dml_matrix$tau_hat))
 stopifnot(is.finite(mm_dml_data$tau_hat))
+stopifnot(length(plain_adstock$stock) == length(signal_media))
+stopifnot(length(robust_adstock$cleaned_signal) == length(signal_media))
+stopifnot(max(robust_adstock$cleaned_signal) &lt; max(signal_media))
+stopifnot(length(mmm_fit$channel_coef) == 3L)
+stopifnot(ncol(mmm_fit$stocks) == 3L)
+stopifnot(all(is.finite(mmm_fit$channel_coef)))
 stopifnot(all(is.finite(m_huber_fit$coef)))
 stopifnot(all(is.finite(m_tukey_fit$coef)))
 stopifnot(all(is.finite(mm_fit$coef)))

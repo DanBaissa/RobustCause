@@ -151,6 +151,133 @@ mm_dml_data <- robustcause::fit_mm_dml(
 mm_dml_data
 ```
 
+## Adstock Showcase
+
+```{r}
+signal_media <- c(10, 12, 70, 11, 9, 55, 8, 7)
+unit_media <- c(1, 1, 1, 1, 2, 2, 2, 2)
+trend <- c(0, 1, 2, 3, 0, 1, 2, 3)
+x_media <- cbind("(Intercept)" = 1, trend = trend)
+ad_dat <- data.frame(
+  signal = signal_media,
+  unit = unit_media,
+  trend = trend
+)
+
+plain_adstock <- robustcause::build_adstock(
+  signal = signal_media,
+  unit_ids = unit_media,
+  rho = 0.8,
+  increment_method = "plain"
+)
+
+robust_adstock <- robustcause::build_adstock(
+  signal = signal_media,
+  unit_ids = unit_media,
+  x_preclean = x_media,
+  preclean = TRUE,
+  preclean_method = "mm",
+  nonnegative = TRUE,
+  rho = 0.8,
+  increment_method = "huber",
+  clip_c = 15
+)
+
+robust_adstock_df <- robustcause::build_adstock(
+  data = ad_dat,
+  signal_col = "signal",
+  unit_col = "unit",
+  controls = "trend",
+  preclean = TRUE,
+  preclean_method = "s",
+  rho = 0.75,
+  increment_method = "adaptive_clip"
+)
+
+plain_adstock
+robust_adstock
+summary(robust_adstock_df)
+```
+
+```{r}
+adstock_compare <- cbind(
+  signal = signal_media,
+  cleaned = round(robust_adstock$cleaned_signal, 3),
+  plain_stock = round(plain_adstock$stock, 3),
+  robust_stock = round(robust_adstock$stock, 3)
+)
+
+adstock_compare
+```
+
+## MMM Showcase
+
+```{r}
+set.seed(7)
+n_units <- 40
+n_periods <- 6
+n_obs <- n_units * n_periods
+unit_mmm <- rep(seq_len(n_units), each = n_periods)
+time_mmm <- rep(seq_len(n_periods), times = n_units)
+base_x1 <- rnorm(n_units)
+x1_mmm <- rep(base_x1, each = n_periods) + rnorm(n_obs, sd = 0.2)
+x2_mmm <- sin(time_mmm / 2) + rnorm(n_obs, sd = 0.2)
+
+channel_1 <- exp(0.4 + 0.35 * x1_mmm + 0.15 * x2_mmm + rnorm(n_obs, sd = 0.15))
+channel_2 <- exp(0.3 + 0.25 * x2_mmm + rnorm(n_obs, sd = 0.15))
+channel_3 <- exp(0.2 + 0.20 * x1_mmm + 0.20 * x2_mmm + rnorm(n_obs, sd = 0.15))
+channel_1[sample.int(n_obs, 4)] <- channel_1[sample.int(n_obs, 4)] * 8
+channel_2[sample.int(n_obs, 4)] <- 0
+
+stock_1 <- ave(channel_1, unit_mmm, FUN = function(z) stats::filter(z, filter = 0.8, method = "recursive", init = 0))
+stock_2 <- ave(channel_2, unit_mmm, FUN = function(z) stats::filter(z, filter = 0.75, method = "recursive", init = 0))
+stock_3 <- ave(channel_3, unit_mmm, FUN = function(z) stats::filter(z, filter = 0.7, method = "recursive", init = 0))
+
+hill <- function(x, lambda) x / (1 + lambda * x)
+y_mmm <- 1 +
+  0.9 * hill(as.numeric(stock_1), 0.12) +
+  0.6 * hill(as.numeric(stock_2), 0.10) +
+  0.5 * hill(as.numeric(stock_3), 0.08) +
+  0.4 * x1_mmm - 0.2 * x2_mmm + rt(n_obs, df = 4)
+
+mmm_dat <- data.frame(
+  y = y_mmm,
+  unit = unit_mmm,
+  x1 = x1_mmm,
+  x2 = x2_mmm,
+  channel_1 = channel_1,
+  channel_2 = channel_2,
+  channel_3 = channel_3
+)
+
+mmm_fit <- robustcause::fit_mmm(
+  data = mmm_dat,
+  outcome = "y",
+  unit = "unit",
+  channel_cols = c("channel_1", "channel_2", "channel_3"),
+  preclean_cols = c("x1", "x2"),
+  control_cols = c("x1", "x2"),
+  fit_method = "huber",
+  rho = c(0.8, 0.75, 0.7),
+  increment_method = c("adaptive_clip", "huber", "tanh"),
+  hill_lambda = c(0.12, 0.10, 0.08),
+  preclean = c(TRUE, TRUE, TRUE),
+  preclean_method = c("mm", "mm", "s"),
+  clip_c = c(1.5, 12, 2.0),
+  seed = 99L
+)
+
+mmm_fit
+summary(mmm_fit)
+```
+
+```{r}
+round(cbind(
+  estimate = mmm_fit$channel_coef,
+  truth = c(0.9, 0.6, 0.5)
+), 3)
+```
+
 ## Robust Covariance Showcase
 
 ```{r}
@@ -192,6 +319,12 @@ stopifnot(is.matrix(vcov(m_huber_fit)))
 stopifnot(is.matrix(robustcause::vcov_robust(ols_fit, hc_type = "HC5")))
 stopifnot(is.finite(mm_dml_matrix$tau_hat))
 stopifnot(is.finite(mm_dml_data$tau_hat))
+stopifnot(length(plain_adstock$stock) == length(signal_media))
+stopifnot(length(robust_adstock$cleaned_signal) == length(signal_media))
+stopifnot(max(robust_adstock$cleaned_signal) < max(signal_media))
+stopifnot(length(mmm_fit$channel_coef) == 3L)
+stopifnot(ncol(mmm_fit$stocks) == 3L)
+stopifnot(all(is.finite(mmm_fit$channel_coef)))
 stopifnot(all(is.finite(m_huber_fit$coef)))
 stopifnot(all(is.finite(m_tukey_fit$coef)))
 stopifnot(all(is.finite(mm_fit$coef)))
