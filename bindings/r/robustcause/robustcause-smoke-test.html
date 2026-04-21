@@ -354,7 +354,25 @@ display: none;
 
 
 <pre class="r"><code>knitr::opts_chunk$set(comment = &quot;#&gt;&quot;, collapse = TRUE)
-library(robustcause)
+pkg_lib &lt;- file.path(tempdir(), &quot;robustcause-rmd-lib&quot;)
+dir.create(pkg_lib, recursive = TRUE, showWarnings = FALSE)
+.libPaths(c(pkg_lib, .libPaths()))
+
+if (!requireNamespace(&quot;remotes&quot;, quietly = TRUE)) {
+  install.packages(&quot;remotes&quot;, lib = pkg_lib, repos = &quot;https://cloud.r-project.org&quot;)
+}
+
+remotes::install_github(
+  &quot;DanBaissa/RobustCause&quot;,
+  subdir = &quot;bindings/r/robustcause&quot;,
+  lib = pkg_lib,
+  upgrade = &quot;never&quot;,
+  force = TRUE,
+  dependencies = TRUE,
+  quiet = TRUE
+)
+
+library(robustcause, lib.loc = pkg_lib)
 set.seed(42)</code></pre>
 <div id="matrix-interface" class="section level2">
 <h2>Matrix Interface</h2>
@@ -473,14 +491,9 @@ stopifnot(all(is.finite(s_fit$coef)))</code></pre>
 </div>
 <div id="local-run-notes" class="section level2">
 <h2>Local Run Notes</h2>
-<p>Install from the repo root before knitting:</p>
-<pre class="r"><code>install.packages(&quot;Rcpp&quot;)
-install.packages(&quot;RcppArmadillo&quot;)
-install.packages(&quot;rmarkdown&quot;)
-install.packages(&quot;knitr&quot;)
-
-install.packages(&quot;bindings/r/robustcause&quot;, repos = NULL, type = &quot;source&quot;)
-rmarkdown::render(&quot;bindings/r/robustcause/robustcause-smoke-test.Rmd&quot;)</code></pre>
+<p>This notebook installs the package directly from GitHub into a
+temporary, isolated library at knit time.</p>
+<pre class="r"><code>rmarkdown::render(&quot;bindings/r/robustcause/robustcause-smoke-test.Rmd&quot;)</code></pre>
 </div>
 
 
