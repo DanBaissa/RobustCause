@@ -9,6 +9,13 @@ pkg_lib <- file.path(tempdir(), "robustcause-rmd-lib")
 dir.create(pkg_lib, recursive = TRUE, showWarnings = FALSE)
 .libPaths(c(pkg_lib, .libPaths()))
 
+if ("package:robustcause" %in% search()) {
+  detach("package:robustcause", unload = TRUE, character.only = TRUE)
+}
+if ("robustcause" %in% loadedNamespaces()) {
+  unloadNamespace("robustcause")
+}
+
 if (!requireNamespace("remotes", quietly = TRUE)) {
   install.packages("remotes", lib = pkg_lib, repos = "https://cloud.r-project.org")
 }
@@ -23,7 +30,6 @@ remotes::install_github(
   quiet = TRUE
 )
 
-library(robustcause, lib.loc = pkg_lib)
 set.seed(42)
 ```
 
@@ -39,13 +45,13 @@ y[c(10, 50, 120, 200)] <- y[c(10, 50, 120, 200)] + c(8, -9, 7, -8)
 
 X <- cbind(x1 = x1, x2 = x2, x3 = x3)
 
-rlm_fit <- fit_rlm(X, y, method = "m", psi = "huber")
+rlm_fit <- robustcause::fit_rlm(X, y, method = "m", psi = "huber")
 rlm_fit
 confint(rlm_fit, hc_type = "HC3")
 ```
 
 ```{r}
-mm_fit <- fit_rlm(
+mm_fit <- robustcause::fit_rlm(
   X,
   y,
   method = "mm",
@@ -60,11 +66,11 @@ head(mm_fit$weights)
 ```{r}
 dat <- data.frame(y = y, x1 = x1, x2 = x2, x3 = x3)
 
-rlm_formula <- fit_rlm(y ~ x1 + x2 + x3, data = dat, method = "mm")
+rlm_formula <- robustcause::fit_rlm(y ~ x1 + x2 + x3, data = dat, method = "mm")
 rlm_formula
 confint(rlm_formula, hc_type = "HC4")
 
-s_formula <- fit_s_estimator(y ~ x1 + x2 + x3, data = dat, n_starts = 80, fast_s_screen_subsets = 80)
+s_formula <- robustcause::fit_s_estimator(y ~ x1 + x2 + x3, data = dat, n_starts = 80, fast_s_screen_subsets = 80)
 s_formula
 ```
 
@@ -72,15 +78,15 @@ s_formula
 
 ```{r}
 lm_fit <- lm(y ~ x1 + x2 + x3, data = dat)
-vcov_robust(lm_fit, hc_type = "HC3")
-confint_robust(lm_fit, hc_type = "HC3")
+robustcause::vcov_robust(lm_fit, hc_type = "HC3")
+robustcause::confint_robust(lm_fit, hc_type = "HC3")
 ```
 
 ## Weight Diagnostics
 
 ```{r}
-plot_weights(rlm_fit)
-plot_weights(mm_fit)
+robustcause::plot_weights(rlm_fit)
+robustcause::plot_weights(mm_fit)
 ```
 
 ## Quick Checks
