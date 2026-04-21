@@ -44,28 +44,61 @@ y <- 1 + 2 * x1 - 1.2 * x2 + 0.8 * x3 + rnorm(n, sd = 0.25)
 y[c(10, 50, 120, 200)] <- y[c(10, 50, 120, 200)] + c(8, -9, 7, -8)
 
 X <- cbind(x1 = x1, x2 = x2, x3 = x3)
-
-rlm_fit <- robustcause::fit_rlm(X, y, method = "m", psi = "huber")
-rlm_fit
-confint(rlm_fit, hc_type = "HC3")
+dat <- data.frame(y = y, x1 = x1, x2 = x2, x3 = x3)
 ```
 
+## Estimator Showcase
+
 ```{r}
+m_huber_fit <- robustcause::fit_rlm(X, y, method = "m", psi = "huber")
+m_tukey_fit <- robustcause::fit_rlm(X, y, method = "m", psi = "tukey_bisquare")
 mm_fit <- robustcause::fit_rlm(
   X,
   y,
   method = "mm",
   mm_s_control = list(n_starts = 100, fast_s_screen_subsets = 100, fast_s_keep = 20)
 )
+s_fit <- robustcause::fit_s_estimator(
+  X,
+  y,
+  n_starts = 100,
+  fast_s_screen_subsets = 100,
+  fast_s_keep = 20
+)
+ols_fit <- lm(y ~ x1 + x2 + x3, data = dat)
+```
+
+```{r}
+coef_table <- rbind(
+  OLS = coef(ols_fit),
+  M_Huber = setNames(as.numeric(m_huber_fit$coef), m_huber_fit$coef_names),
+  M_Tukey = setNames(as.numeric(m_tukey_fit$coef), m_tukey_fit$coef_names),
+  MM = setNames(as.numeric(mm_fit$coef), mm_fit$coef_names),
+  S = setNames(as.numeric(s_fit$coef), s_fit$coef_names)
+)
+
+round(coef_table, 4)
+```
+
+```{r}
+m_huber_fit
+round(confint(m_huber_fit, hc_type = "HC3"), 4)
+```
+
+```{r}
 mm_fit
+round(confint(mm_fit, hc_type = "HC3"), 4)
 head(mm_fit$weights)
+```
+
+```{r}
+s_fit
+head(s_fit$weights)
 ```
 
 ## Formula Interface
 
 ```{r}
-dat <- data.frame(y = y, x1 = x1, x2 = x2, x3 = x3)
-
 rlm_formula <- robustcause::fit_rlm(y ~ x1 + x2 + x3, data = dat, method = "mm")
 rlm_formula
 confint(rlm_formula, hc_type = "HC4")
@@ -74,10 +107,23 @@ s_formula <- robustcause::fit_s_estimator(y ~ x1 + x2 + x3, data = dat, n_starts
 s_formula
 ```
 
+## Robust Covariance Showcase
+
+```{r}
+hc_types <- c("HC0", "HC1", "HC2", "HC3", "HC4", "HC4m", "HC5")
+
+hc_se_table <- sapply(hc_types, function(hc) {
+  sqrt(diag(robustcause::vcov_robust(ols_fit, hc_type = hc)))
+})
+
+rownames(hc_se_table) <- names(coef(ols_fit))
+round(hc_se_table, 4)
+```
+
 ## Robust SEs For `lm`
 
 ```{r}
-lm_fit <- lm(y ~ x1 + x2 + x3, data = dat)
+lm_fit <- ols_fit
 robustcause::vcov_robust(lm_fit, hc_type = "HC3")
 robustcause::confint_robust(lm_fit, hc_type = "HC3")
 ```
@@ -85,18 +131,25 @@ robustcause::confint_robust(lm_fit, hc_type = "HC3")
 ## Weight Diagnostics
 
 ```{r}
-robustcause::plot_weights(rlm_fit)
+robustcause::plot_weights(m_huber_fit)
+robustcause::plot_weights(m_tukey_fit)
 robustcause::plot_weights(mm_fit)
+robustcause::plot_weights(s_fit)
 ```
 
 ## Quick Checks
 
 ```{r}
-stopifnot(length(rlm_fit$coef) == ncol(X) + 1)
-stopifnot(is.matrix(vcov(rlm_fit)))
+stopifnot(length(m_huber_fit$coef) == ncol(X) + 1)
+stopifnot(length(m_tukey_fit$coef) == ncol(X) + 1)
 stopifnot(length(mm_fit$coef) == ncol(X) + 1)
-stopifnot(all(is.finite(rlm_fit$coef)))
+stopifnot(length(s_fit$coef) == ncol(X) + 1)
+stopifnot(is.matrix(vcov(m_huber_fit)))
+stopifnot(is.matrix(robustcause::vcov_robust(ols_fit, hc_type = "HC5")))
+stopifnot(all(is.finite(m_huber_fit$coef)))
+stopifnot(all(is.finite(m_tukey_fit$coef)))
 stopifnot(all(is.finite(mm_fit$coef)))
+stopifnot(all(is.finite(s_fit$coef)))
 ```
 
 ## Local Run Notes
