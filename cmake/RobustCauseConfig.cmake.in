@@ -1,0 +1,6 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Armadillo REQUIRED)
+
+include("${CMAKE_CURRENT_LIST_DIR}/RobustCauseTargets.cmake")
