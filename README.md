@@ -1,55 +1,314 @@
 # RobustCause
 
-RobustCause is a C++ core library for robust causal-inference tooling, intended to sit underneath R and Python frontends.
+RobustCause is a C++ core library for robust causal inference, robust marketing-mix modeling, and robust regression, with an R package already built on top of it and a Python binding layer intended next.
 
-The current focus is the numerical kernel:
-- robust adstock construction with optional S/MM precleaning
-- robust MMM fitting with per-channel cleaning, carryover, Hill saturation, and robust regression
+The project is organized around a shared numerical backend:
+
 - robust linear regression with M and MM estimation
-- Tukey bisquare S-estimation for linear models
-- robust MM-DML for partially linear treatment-effect estimation
-- HC0-HC5 heteroskedasticity-consistent covariance estimators
-- a lightweight formula/data interface on the C++ side
-- a small C ABI that can be wrapped from `pybind11`, `Rcpp`, or direct FFI
+- Tukey bisquare S-estimation
+- heteroskedasticity-consistent covariance estimators for robust and classical linear models
+- MM double machine learning for partially linear treatment effects
+- robust adstock construction with optional S/MM precleaning
+- robust marketing mix modeling with per-channel cleaning, carryover, Hill saturation, and robust final regression
 
-## Current status
+## What The API Does
 
-The repository now includes:
-- a C++ core library with installable CMake packaging
-- a robust adstock module in the shared C++ core
-- a robust MMM module in the shared C++ core
-- an R package at `bindings/r/robustcause`
-- M-estimation and MM-estimation in `fit_rlm()`
-- MM-DML in `fit_mm_dml()`
-- a separate robust covariance layer so HC inference is not tied to fitting
-- robust covariance helpers for both RobustCause fits and base R `lm` objects
-- a GitHub-installing R Markdown notebook that acts as both a showcase and smoke test
+Today, the most complete user-facing API is the R package in [bindings/r/robustcause](/A:/RobustCause/bindings/r/robustcause:1).
 
-In the R package, the intended split is:
-- fitting: `fit_rlm(..., method = "m" | "mm")`, `fit_s_estimator(...)`, and `fit_mm_dml(...)`
-- inference: `vcov(..., hc_type = ...)`, `confint(..., hc_type = ...)`, `vcov_robust()`, and `confint_robust()`
+That package exposes a consistent set of fit objects with `print()` and `summary()` methods for:
 
-## Design goals
+- `fit_rlm()` for robust linear models
+- `fit_s_estimator()` for standalone S-estimation
+- `fit_mm_dml()` for robust double machine learning
+- `build_adstock()` for robust carryover stock construction
+- `fit_mmm()` for multi-channel marketing mix models
 
-- Keep the numerical core in C++ for speed and shared behavior.
-- Expose matrix-first APIs that are easy to bind from Python and R.
-- Treat formula parsing and dataframe ergonomics as frontend concerns when possible.
-- Ship a stable, installable CMake target for downstream packages.
+The underlying C++ core lives in:
 
-## Repository layout
+- [include/robust](/A:/RobustCause/include/robust:1)
+- [include/robustcause](/A:/RobustCause/include/robustcause:1)
+- [src](/A:/RobustCause/src:1)
 
-- `include/robust/`: primary C++ headers for the current core API
-- `include/robustcause/`: umbrella headers and the C ABI boundary
-- `src/`: implementation files
-- `examples/`: example consumers of the C++ and C APIs
-- `tests/`: smoke tests
-- `docs/`: architecture and binding notes
-- `bindings/r/robustcause/`: self-contained R package wrapper around the C++ core
-- `bindings/`: language bindings and related package scaffolding
+That core is intended to be the shared engine used by both R and future Python bindings.
 
-## Build
+## Current Status
 
-The library depends on [Armadillo](https://arma.sourceforge.net/).
+Implemented now:
+
+- installable C++ core library with CMake packaging
+- shared C++ modules for robust regression, S-estimation, adstock, and MMM
+- R package wrapper with compiled native code
+- robust inference helpers for both RobustCause fits and base R `lm` objects
+- smoke-test/showcase notebook at [bindings/r/robustcause/robustcause-smoke-test.Rmd](/A:/RobustCause/bindings/r/robustcause/robustcause-smoke-test.Rmd:1)
+
+Not implemented yet:
+
+- Python bindings
+- a polished end-user Python package
+- a unified high-level frontend across R and Python
+
+## Repository Layout
+
+- [include/robust](/A:/RobustCause/include/robust:1): core C++ headers
+- [include/robustcause](/A:/RobustCause/include/robustcause:1): umbrella headers and C ABI
+- [src](/A:/RobustCause/src:1): core C++ implementations
+- [examples](/A:/RobustCause/examples:1): C++ example programs
+- [tests](/A:/RobustCause/tests:1): smoke tests for the C++ core
+- [bindings/r/robustcause](/A:/RobustCause/bindings/r/robustcause:1): R package
+- [docs](/A:/RobustCause/docs:1): architecture notes
+
+## R Package Installation
+
+Install from GitHub:
+
+```r
+install.packages(c("remotes", "Rcpp", "RcppArmadillo", "RcppEigen"))
+remotes::install_github("DanBaissa/RobustCause", subdir = "bindings/r/robustcause")
+```
+
+Then load it:
+
+```r
+library(robustcause)
+```
+
+## Core R Functions
+
+### `fit_rlm()`
+
+Fits a robust linear model using either:
+
+- `method = "m"` for standard M-estimation
+- `method = "mm"` for MM-estimation initialized from the S-estimator
+
+Key behavior:
+
+- accepts either matrix input or formula/data input
+- defaults to Huber psi for M-estimation
+- defaults to Tukey bisquare psi for MM-estimation
+- defaults `tuning = 4.685` when `method = "mm"`
+- robust covariance is handled separately through `vcov()` and `confint()`
+
+Example:
+
+```r
+set.seed(42)
+n <- 200
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+y <- 1 + 2 * x1 - 1.5 * x2 + rnorm(n)
+
+fit <- fit_rlm(y ~ x1 + x2, data = data.frame(y, x1, x2), method = "mm")
+summary(fit)
+confint(fit, hc_type = "HC3")
+```
+
+### `fit_s_estimator()`
+
+Fits a standalone S-estimator for robust linear regression.
+
+Use this when you want:
+
+- a high-breakdown robust regression fit directly
+- access to S-estimation without the MM refinement stage
+- a robust starting point conceptually separated from MM fitting
+
+Example:
+
+```r
+X <- cbind(x1 = x1, x2 = x2)
+s_fit <- fit_s_estimator(X, y)
+summary(s_fit)
+```
+
+### `vcov_robust()` and `confint_robust()`
+
+These provide HC-style sandwich inference for classical `lm` objects.
+
+Supported covariance types:
+
+- `HC0`
+- `HC1`
+- `HC2`
+- `HC3`
+- `HC4`
+- `HC5`
+
+Example:
+
+```r
+ols_fit <- lm(y ~ x1 + x2)
+vcov_robust(ols_fit, hc_type = "HC3")
+confint_robust(ols_fit, hc_type = "HC3")
+```
+
+This split is deliberate:
+
+- `fit_rlm()` chooses the estimator
+- `vcov()` / `confint()` choose the inference method
+
+## Robust DML
+
+### `fit_mm_dml()`
+
+Fits a robust partially linear double machine learning model with an MM second stage.
+
+Current wrapper supports:
+
+- matrix interface: `x`, `d`, `y`
+- data-frame interface: `outcome`, `treatment`, `controls`, `data`
+- nuisance learners:
+  - `"lasso"`
+  - `"elastic_net"`
+  - `"random_forest"`
+  - `"hist_gradient_boosting"`
+- `se_type = "analytic"` or `se_type = "bootstrap"`
+- bootstrap repetition control and multicore bootstrap execution
+- `summary()` output with coefficient table, learner, fold count, backend, and convergence info
+
+Example:
+
+```r
+set.seed(42)
+n <- 250
+p <- 6
+x <- matrix(rnorm(n * p), nrow = n, ncol = p)
+d <- 0.9 * x[, 1] - 0.4 * x[, 2] + rnorm(n, sd = 0.35)
+y <- 1.35 * d + 0.5 * x[, 1] - 0.2 * x[, 3] + rnorm(n, sd = 0.30)
+toy_df <- data.frame(y = y, d = d, x)
+names(toy_df) <- c("y", "d", paste0("x", 1:6))
+
+fit <- fit_mm_dml(
+  outcome = "y",
+  treatment = "d",
+  controls = paste0("x", 1:6),
+  data = toy_df,
+  learner = "lasso",
+  se_type = "bootstrap",
+  bootstrap_replications = 50,
+  n_cores = 2L,
+  folds = 3,
+  seed = 101
+)
+
+summary(fit)
+```
+
+## Robust Adstock
+
+### `build_adstock()`
+
+Builds a carryover stock from a raw signal, with optional robust precleaning before the recursive adstock step.
+
+Supported increment rules:
+
+- `"plain"`
+- `"huber"`
+- `"tanh"`
+- `"softsign"`
+- `"adaptive_clip"`
+
+Supported preclean methods:
+
+- `"s"`
+- `"mm"`
+
+The function supports:
+
+- direct vector/matrix input
+- data-frame input
+- summary output showing signal, cleaned signal, stock summaries, and head comparisons
+
+Example:
+
+```r
+signal <- c(10, 12, 60, 9, 8, 40)
+unit_ids <- c(1, 1, 1, 2, 2, 2)
+x_preclean <- cbind("(Intercept)" = 1, trend = c(0, 1, 2, 0, 1, 2))
+
+ad_fit <- build_adstock(
+  signal = signal,
+  unit_ids = unit_ids,
+  x_preclean = x_preclean,
+  preclean = TRUE,
+  preclean_method = "mm",
+  increment_method = "huber",
+  rho = 0.8
+)
+
+summary(ad_fit)
+```
+
+## Robust MMM
+
+### `fit_mmm()`
+
+Fits a multi-channel marketing mix model with the following pipeline for each channel:
+
+1. optional robust precleaning
+2. carryover/adstock construction
+3. optional Hill saturation
+4. final regression using OLS, Huber, S, or MM
+
+Important inputs:
+
+- `channel_cols`: media channels
+- `preclean_cols`: covariates used in the first-step cleaning stage
+- `control_cols`: final regression controls
+- `rho`: per-channel carryover parameters
+- `increment_method`: per-channel adstock rule
+- `hill_lambda`: per-channel Hill saturation parameter
+- `fit_method`: one of `"ols"`, `"huber"`, `"s"`, `"mm"`
+
+The fit object includes:
+
+- full coefficient vector
+- channel-only coefficients
+- cleaned channel signals
+- carryover stocks
+- Hill-transformed channel regressors
+- final design matrix
+- structured `summary()` output with channel diagnostics and coefficient table
+
+Example:
+
+```r
+mmm_fit <- fit_mmm(
+  data = mmm_dat,
+  outcome = "y",
+  unit = "unit",
+  channel_cols = c("channel_1", "channel_2", "channel_3"),
+  preclean_cols = c("x1", "x2"),
+  control_cols = c("x1", "x2"),
+  fit_method = "huber",
+  rho = c(0.8, 0.75, 0.7),
+  increment_method = c("adaptive_clip", "huber", "tanh"),
+  hill_lambda = c(0.12, 0.10, 0.08),
+  preclean = c(TRUE, TRUE, TRUE),
+  preclean_method = c("mm", "mm", "s")
+)
+
+summary(mmm_fit)
+```
+
+## C++ Core
+
+The C++ library is the shared backend that the R package compiles against.
+
+Main public headers:
+
+- [include/robustcause/robustcause.hpp](/A:/RobustCause/include/robustcause/robustcause.hpp:1)
+- [include/robustcause/capi.h](/A:/RobustCause/include/robustcause/capi.h:1)
+
+The design is matrix-first and binding-friendly:
+
+- column-major layout aligns naturally with Armadillo and R
+- the C ABI is intended to be stable enough for future Python and R frontends
+- higher-level ergonomics such as formulas and data frames belong mostly in the frontend layer
+
+## Building The C++ Library
+
+The core library depends on [Armadillo](https://arma.sourceforge.net/).
 
 ```bash
 cmake -S . -B build
@@ -57,56 +316,41 @@ cmake --build build
 ctest --test-dir build
 ```
 
-## Consuming from CMake
-
-After install, downstream CMake projects can use:
+Downstream CMake usage after install:
 
 ```cmake
 find_package(RobustCause REQUIRED)
 target_link_libraries(my_target PRIVATE RobustCause::robustcause)
 ```
 
-## Binding strategy
+## Notebook Showcase
 
-Two layers are available:
-- C++ API via `#include <robustcause/robustcause.hpp>`
-- C ABI via `#include <robustcause/capi.h>`
+The repository includes an end-to-end notebook:
 
-The C ABI is deliberately matrix-first and column-major so it aligns well with Armadillo and R, while Python wrappers can opt into Fortran-order arrays or transpose on entry.
+- source: [bindings/r/robustcause/robustcause-smoke-test.Rmd](/A:/RobustCause/bindings/r/robustcause/robustcause-smoke-test.Rmd:1)
+- rendered output: [bindings/r/robustcause/robustcause-smoke-test.html](/A:/RobustCause/bindings/r/robustcause/robustcause-smoke-test.html:1)
 
-## R package
+The notebook acts as both:
 
-The R package currently provides:
-- `fit_rlm()` with `method = "m"` and `method = "mm"`
-- `fit_s_estimator()`
-- `fit_mm_dml()` for robust orthogonalized treatment-effect estimation
-- `build_adstock()` for robust carryover construction
-- `fit_mmm()` for multi-channel MMM fitting
-- `vcov()` and `confint()` methods for robust fits with selectable HC type
-- `vcov_robust()` and `confint_robust()` for base `lm` objects
-- a smoke-test/showcase notebook at `bindings/r/robustcause/robustcause-smoke-test.Rmd`
+- a feature showcase
+- a smoke test for package installation and the main estimators
 
-The notebook installs the package from GitHub before running, so it doubles as an end-to-end installation check.
+It currently covers:
 
-## Adstock API
+- OLS
+- M-estimation
+- MM-estimation
+- S-estimation
+- HC0-HC5 inference for `lm`
+- MM-DML
+- adstock
+- MMM
 
-The shared C++ core now also exposes:
-- `build_adstock(...)`
-- `build_robust_adstock(...)`
-- `preclean_signal_s(...)`
-- `preclean_signal_mm(...)`
-- `fit_mmm(...)`
+## Roadmap
 
-The adstock module supports plain, Huber, tanh, softsign, and adaptive-clip increment rules, plus optional first-step S or MM signal cleaning before stock accumulation.
+The next high-value steps are:
 
-The MMM module builds on top of those adstock primitives and adds:
-- per-channel precleaning
-- per-channel Hill saturation
-- final OLS, Huber, S, or MM regression
-
-## Next recommended steps
-
-- add `pybind11` bindings under `bindings/python/`
-- grow the estimator catalog with causal-model-specific routines
-- reduce source duplication between the root C++ core and the vendored R package sources
-- formalize tests against reference implementations in R and Python
+- add Python bindings under `bindings/python/`
+- reduce duplication between the root C++ core and vendored R package sources
+- add stronger regression tests against reference implementations
+- expand the causal-estimation catalog on top of the current robust core

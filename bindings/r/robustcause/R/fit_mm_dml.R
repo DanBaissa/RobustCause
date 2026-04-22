@@ -427,17 +427,23 @@ summary.robustcause_mm_dml <- function(object, ...) {
     NA_real_
   }
 
+  treatment_label <- object$treatment_name %||% object$treatment_names %||% "d"
+  if (length(treatment_label) != 1L || is.na(treatment_label) || !nzchar(treatment_label)) {
+    treatment_label <- "d"
+  }
+
   coef_est <- c(object$intercept_hat, object$tau_hat)
   coef_se <- c(intercept_se, object$std_error)
   coef_t <- coef_est / coef_se
   coef_p <- 2 * stats::pt(abs(coef_t), df = df_residual, lower.tail = FALSE)
-  coef_table <- cbind(
-    Estimate = coef_est,
-    `Std. Error` = coef_se,
-    `t value` = coef_t,
-    `Pr(>|t|)` = coef_p
+  coef_table <- matrix(
+    c(coef_est, coef_se, coef_t, coef_p),
+    nrow = 2L,
+    dimnames = list(
+      c("(Intercept)", treatment_label),
+      c("Estimate", "Std. Error", "t value", "Pr(>|t|)")
+    )
   )
-  rownames(coef_table) <- c("(Intercept)", object$treatment_name %||% "d")
 
   structure(
     list(

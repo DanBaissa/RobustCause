@@ -150,23 +150,41 @@ fit_mmm <- function(y = NULL,
 }
 
 print.robustcause_mmm <- function(x, ...) {
-  cat("RobustCause MMM fit\n")
-  cat("N:", x$nobs, "\n")
-  cat("Fit method:", x$fit_method, "\n")
-  cat("\nChannel coefficients:\n")
-  print(x$channel_coef)
+  print(summary(x), ...)
   invisible(x)
 }
 
 summary.robustcause_mmm <- function(object, ...) {
+  coef_names <- names(object$full_coef)
+  roles <- rep("control", length(object$full_coef))
+  roles[coef_names == "(Intercept)"] <- "intercept"
+  roles[coef_names %in% object$channel_names] <- "channel"
+  coefficients <- data.frame(
+    term = coef_names,
+    role = roles,
+    estimate = unname(object$full_coef),
+    row.names = NULL,
+    check.names = FALSE
+  )
+  channel_table <- data.frame(
+    channel = object$channel_names,
+    estimate = unname(object$channel_coef),
+    cleaned_mean = colMeans(object$cleaned_signals),
+    stock_mean = colMeans(object$stocks),
+    transformed_mean = colMeans(object$transformed_channels),
+    row.names = NULL,
+    check.names = FALSE
+  )
   structure(
     list(
       call = object$call,
       ok = object$ok,
       nobs = object$nobs,
       fit_method = object$fit_method,
-      channel_coef = object$channel_coef,
+      coefficients = coefficients,
+      channel_table = channel_table,
       design_columns = colnames(object$design_matrix),
+      design_ncol = ncol(object$design_matrix),
       regression_scale = object$regression_scale
     ),
     class = "summary.robustcause_mmm"
@@ -180,8 +198,11 @@ print.summary.robustcause_mmm <- function(x, ...) {
   cat("\nFit ok:", x$ok, "\n")
   cat("N:", x$nobs, "\n")
   cat("Fit method:", x$fit_method, "\n")
+  cat("Design columns:", x$design_ncol, "\n")
   cat("Regression scale:", format(signif(x$regression_scale, 6)), "\n")
-  cat("\nChannel coefficients:\n")
-  print(x$channel_coef)
+  cat("\nChannel summary:\n")
+  print(x$channel_table, row.names = FALSE)
+  cat("\nCoefficient table:\n")
+  print(x$coefficients, row.names = FALSE)
   invisible(x)
 }

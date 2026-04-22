@@ -117,18 +117,13 @@ build_adstock <- function(signal = NULL,
 }
 
 print.robustcause_adstock <- function(x, ...) {
-  cat("RobustCause adstock fit\n")
-  cat("N:", x$nobs, "\n")
-  cat("Preclean:", if (isTRUE(x$preclean_enabled)) x$preclean_method else "none", "\n")
-  cat("Increment:", x$increment_method, "\n")
-  cat("Rho:", format(signif(x$rho, 6)), "\n")
-  cat("\nHead of stock:\n")
-  print(utils::head(x$stock))
+  print(summary(x), ...)
   invisible(x)
 }
 
 summary.robustcause_adstock <- function(object, ...) {
   delta <- object$signal - object$cleaned_signal
+  head_n <- min(6L, object$nobs)
   structure(
     list(
       call = object$call,
@@ -137,9 +132,19 @@ summary.robustcause_adstock <- function(object, ...) {
       preclean_method = object$preclean_method,
       increment_method = object$increment_method,
       rho = object$rho,
+      clip_c = object$clip_c,
+      adaptive_upper = object$adaptive_upper,
       cleaning_shift_mean = mean(delta),
+      cleaning_shift_sd = stats::sd(delta),
       cleaning_shift_max = max(abs(delta)),
-      stock_summary = stats::setNames(summary(object$stock), names(summary(object$stock)))
+      signal_summary = stats::setNames(summary(object$signal), names(summary(object$signal))),
+      cleaned_signal_summary = stats::setNames(summary(object$cleaned_signal), names(summary(object$cleaned_signal))),
+      stock_summary = stats::setNames(summary(object$stock), names(summary(object$stock))),
+      head_table = data.frame(
+        signal = utils::head(object$signal, head_n),
+        cleaned_signal = utils::head(object$cleaned_signal, head_n),
+        stock = utils::head(object$stock, head_n)
+      )
     ),
     class = "summary.robustcause_adstock"
   )
@@ -154,9 +159,18 @@ print.summary.robustcause_adstock <- function(x, ...) {
   cat("Preclean:", if (isTRUE(x$preclean_enabled)) x$preclean_method else "none", "\n")
   cat("Increment:", x$increment_method, "\n")
   cat("Rho:", format(signif(x$rho, 6)), "\n")
+  cat("Clip c:", format(signif(x$clip_c, 6)), "\n")
+  cat("Adaptive upper:", format(signif(x$adaptive_upper, 6)), "\n")
   cat("Mean cleaning shift:", format(signif(x$cleaning_shift_mean, 6)), "\n")
+  cat("Cleaning shift sd:", format(signif(x$cleaning_shift_sd, 6)), "\n")
   cat("Max absolute cleaning shift:", format(signif(x$cleaning_shift_max, 6)), "\n")
+  cat("\nSignal summary:\n")
+  print(x$signal_summary)
+  cat("\nCleaned signal summary:\n")
+  print(x$cleaned_signal_summary)
   cat("\nStock summary:\n")
   print(x$stock_summary)
+  cat("\nHead (signal / cleaned / stock):\n")
+  print(x$head_table, row.names = FALSE)
   invisible(x)
 }

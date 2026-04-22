@@ -9,8 +9,13 @@ pkg_lib <- normalizePath(file.path(getwd(), ".robustcause-rmd-lib"), winslash = 
 dir.create(pkg_lib, recursive = TRUE, showWarnings = FALSE)
 .libPaths(c(pkg_lib, .Library))
 if ("robustcause" %in% loadedNamespaces()) unloadNamespace("robustcause")
-install.packages("remotes", lib = pkg_lib, repos = "https://cloud.r-project.org")
-remotes::install_github("DanBaissa/RobustCause", subdir = "bindings/r/robustcause", lib = pkg_lib, upgrade = "never", force = TRUE, dependencies = TRUE, quiet = FALSE)
+install.packages(c("remotes", "Rcpp", "RcppArmadillo", "RcppEigen"), lib = pkg_lib, repos = "https://cloud.r-project.org")
+local_source <- Sys.getenv("ROBUSTCAUSE_LOCAL_SOURCE", unset = "")
+if (nzchar(local_source)) {
+  remotes::install_local(local_source, lib = pkg_lib, upgrade = "never", force = TRUE, dependencies = FALSE, quiet = FALSE)
+} else {
+  remotes::install_github("DanBaissa/RobustCause", subdir = "bindings/r/robustcause", lib = pkg_lib, upgrade = "never", force = TRUE, dependencies = TRUE, quiet = FALSE)
+}
 
 library(robustcause, lib.loc = pkg_lib)
 stopifnot("method" %in% names(formals(robustcause::fit_rlm)))
@@ -186,8 +191,8 @@ robust_adstock_df <- robustcause::build_adstock(
   increment_method = "adaptive_clip"
 )
 
-plain_adstock
-robust_adstock
+summary(plain_adstock)
+summary(robust_adstock)
 summary(robust_adstock_df)
 ```
 
@@ -259,7 +264,6 @@ mmm_fit <- robustcause::fit_mmm(
   seed = 99L
 )
 
-mmm_fit
 summary(mmm_fit)
 ```
 
