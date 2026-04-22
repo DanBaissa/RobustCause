@@ -132,7 +132,7 @@ mm_dml_matrix <- robustcause::fit_mm_dml(
   folds = 3L,
   seed = 13L
 )
-mm_dml_matrix
+summary(mm_dml_matrix)
 ```
 
 ```{r}
@@ -145,7 +145,44 @@ mm_dml_data <- robustcause::fit_mm_dml(
   folds = 3L,
   seed = 21L
 )
-mm_dml_data
+summary(mm_dml_data)
+```
+
+```{r}
+dat_dml$d2 <- dat_dml$d + rnorm(n, sd = 0.15)
+dat_dml$block_id <- rep(seq_len(50), each = 5)
+dat_dml$d_x1 <- dat_dml$d * dat_dml$x1
+
+custom_lm <- robustcause::make_custom_learner(
+  model_y = list(
+    fit = function(x_train, y_train, seed, role) stats::lm(y_train ~ ., data = x_train),
+    predict = function(model, x_test, seed, role) stats::predict(model, newdata = x_test)
+  ),
+  model_t = list(
+    fit = function(x_train, y_train, seed, role) stats::lm(y_train ~ ., data = x_train),
+    predict = function(model, x_test, seed, role) stats::predict(model, newdata = x_test)
+  ),
+  label = "custom_lm"
+)
+
+mm_dml_joint <- robustcause::fit_mm_dml(
+  data = dat_dml,
+  outcome = "y",
+  treatment = c("d", "d2"),
+  controls = c("x1", "x2", "x3"),
+  second_stage_controls = "d_x1",
+  learner = custom_lm,
+  fold_type = "spatial_block",
+  block_id = "block_id",
+  folds = 3L,
+  se_type = "bootstrap",
+  bootstrap_replications = 12L,
+  n_cores = 2L,
+  seed = 31L
+)
+
+summary(mm_dml_joint)
+robustcause::plot_marginal_effect(mm_dml_joint, focal = "d", interaction = "d_x1", moderator_values = c(-1, 0, 1))
 ```
 
 ## Adstock Showcase
