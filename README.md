@@ -12,6 +12,21 @@ The project is organized around a shared numerical backend:
 - end-to-end adstock response modeling with parameter search
 - robust marketing mix modeling with per-channel cleaning, carryover, Hill saturation, robust final regression, and optional parameter search
 
+## R Package Installation
+
+Install from GitHub:
+
+```r
+install.packages(c("remotes", "Rcpp", "RcppArmadillo", "RcppEigen"))
+remotes::install_github("DanBaissa/RobustCause", subdir = "bindings/r/robustcause")
+```
+
+Then load it:
+
+```r
+library(robustcause)
+```
+
 ## What The API Does
 
 Today, the most complete user-facing API is the R package in [bindings/r/robustcause](/A:/RobustCause/bindings/r/robustcause:1).
@@ -58,21 +73,6 @@ Not implemented yet:
 - [tests](/A:/RobustCause/tests:1): smoke tests for the C++ core
 - [bindings/r/robustcause](/A:/RobustCause/bindings/r/robustcause:1): R package
 - [docs](/A:/RobustCause/docs:1): architecture notes
-
-## R Package Installation
-
-Install from GitHub:
-
-```r
-install.packages(c("remotes", "Rcpp", "RcppArmadillo", "RcppEigen"))
-remotes::install_github("DanBaissa/RobustCause", subdir = "bindings/r/robustcause")
-```
-
-Then load it:
-
-```r
-library(robustcause)
-```
 
 ## Core R Functions
 
