@@ -8,7 +8,7 @@ fit_rlm(
   data = NULL,
   method = c("m", "mm"),
   psi = NULL,
-  tuning = 1.345,
+  tuning = NULL,
   maxit = 100L,
   tol = 1e-08,
   add_intercept = TRUE,
@@ -23,7 +23,7 @@ fit_rlm(
   \item{data}{A data frame used with formula input.}
   \item{method}{Either \code{"m"} or \code{"mm"}.}
   \item{psi}{Psi function name. If \code{NULL}, the default is Huber for M and Tukey bisquare for MM.}
-  \item{tuning}{Psi tuning constant.}
+  \item{tuning}{Psi tuning constant. If \code{NULL}, the default is \code{1.345} for M and \code{4.685} for MM.}
   \item{maxit}{Maximum IRLS iterations.}
   \item{tol}{Convergence tolerance.}
   \item{add_intercept}{Whether to add an intercept for matrix input.}

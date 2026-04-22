@@ -169,6 +169,43 @@ fit_rlm <- function(x,
 }
 
 print.robustcause_rlm <- function(x, ...) {
+  print(summary(x), ...)
+  invisible(x)
+}
+
+summary.robustcause_rlm <- function(object, hc_type = "HC3", level = 0.95, ...) {
+  vc <- vcov(object, hc_type = hc_type)
+  se <- sqrt(pmax(diag(vc), 0))
+  zcrit <- stats::qnorm((1 + level) / 2)
+  coef_table <- cbind(
+    Estimate = object$coef,
+    `Std. Error` = se,
+    `z value` = object$coef / se,
+    `Pr(>|z|)` = 2 * stats::pnorm(abs(object$coef / se), lower.tail = FALSE),
+    lower = object$coef - zcrit * se,
+    upper = object$coef + zcrit * se
+  )
+  rownames(coef_table) <- object$coef_names
+  colnames(coef_table) <- c("Estimate", "Std. Error", "z value", "Pr(>|z|)", "lower", "upper")
+
+  structure(
+    list(
+      call = object$call,
+      formula = object$formula,
+      method = object$method,
+      psi = object$psi,
+      converged = object$converged,
+      iterations = object$iterations,
+      scale = object$scale,
+      hc_type = hc_type,
+      level = level,
+      coefficients = coef_table
+    ),
+    class = "summary.robustcause_rlm"
+  )
+}
+
+print.summary.robustcause_rlm <- function(x, digits = max(3L, getOption("digits") - 3L), ...) {
   cat("RobustCause RLM fit\n")
   if (!is.null(x$formula)) {
     cat("Formula:", x$formula, "\n")
@@ -178,8 +215,9 @@ print.robustcause_rlm <- function(x, ...) {
   cat("Converged:", x$converged, "\n")
   cat("Iterations:", x$iterations, "\n")
   cat("Scale:", format(signif(x$scale, 6)), "\n")
+  cat("Inference:", x$hc_type, "\n")
   cat("\nCoefficients:\n")
-  print(stats::setNames(x$coef, x$coef_names))
+  stats::printCoefmat(x$coefficients[, c("Estimate", "Std. Error", "z value", "Pr(>|z|)")], digits = digits, signif.stars = TRUE, na.print = "NA")
   invisible(x)
 }
 

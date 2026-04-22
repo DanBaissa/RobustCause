@@ -5,6 +5,8 @@
 
 _bundle_inspect/
 .rlib/
+.robustcause-rmd-lib/
+bindings/r/robustcause/.robustcause-rmd-lib/
 build/
 build-*/
 cmake-build-*/

@@ -85,18 +85,18 @@ round(accuracy_compare[order(accuracy_compare$rmse), , drop = FALSE], 4)
 
 
 ```{r}
-m_huber_fit
+summary(m_huber_fit)
 round(confint(m_huber_fit, hc_type = "HC3"), 4)
 ```
 
 ```{r}
-mm_fit
+summary(mm_fit)
 round(confint(mm_fit, hc_type = "HC3"), 4)
 head(mm_fit$weights)
 ```
 
 ```{r}
-s_fit
+summary(s_fit)
 head(s_fit$weights)
 ```
 

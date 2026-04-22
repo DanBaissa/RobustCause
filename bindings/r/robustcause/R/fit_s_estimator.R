@@ -51,6 +51,32 @@ fit_s_estimator <- function(x,
 }
 
 print.robustcause_s <- function(x, ...) {
+  print(summary(x), ...)
+  invisible(x)
+}
+
+summary.robustcause_s <- function(object, ...) {
+  coef_table <- cbind(Estimate = object$coef)
+  rownames(coef_table) <- object$coef_names
+
+  structure(
+    list(
+      call = object$call,
+      formula = object$formula,
+      converged = object$converged,
+      iterations = object$iterations,
+      scale = object$scale,
+      objective = object$objective,
+      starts_tried = object$starts_tried,
+      starts_used = object$starts_used,
+      message = object$message,
+      coefficients = coef_table
+    ),
+    class = "summary.robustcause_s"
+  )
+}
+
+print.summary.robustcause_s <- function(x, digits = max(3L, getOption("digits") - 3L), ...) {
   cat("RobustCause S-estimator fit\n")
   if (!is.null(x$formula)) {
     cat("Formula:", x$formula, "\n")
@@ -58,9 +84,13 @@ print.robustcause_s <- function(x, ...) {
   cat("Converged:", x$converged, "\n")
   cat("Iterations:", x$iterations, "\n")
   cat("Scale:", format(signif(x$scale, 6)), "\n")
+  cat("Starts tried:", x$starts_tried, "\n")
   cat("Starts used:", x$starts_used, "\n")
+  if (!is.null(x$message) && nzchar(x$message)) {
+    cat("Message:", x$message, "\n")
+  }
   cat("\nCoefficients:\n")
-  print(stats::setNames(x$coef, x$coef_names))
+  print(round(x$coefficients, digits))
   invisible(x)
 }
 
