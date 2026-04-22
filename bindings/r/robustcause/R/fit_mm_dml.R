@@ -18,6 +18,7 @@ fit_mm_dml <- function(x = NULL,
                        second_stage_controls = NULL,
                        data = NULL,
                        learner = c("lasso", "elastic_net", "random_forest", "hist_gradient_boosting"),
+                       learner_params = NULL,
                        se_type = c("analytic", "bootstrap"),
                        bootstrap_replications = 200L,
                        bootstrap_seed = NULL,
@@ -36,6 +37,7 @@ fit_mm_dml <- function(x = NULL,
   se_type <- match.arg(se_type)
   fold_type <- match.arg(fold_type)
   learner <- .normalize_mm_dml_learner(learner)
+  learner_params <- .normalize_mm_dml_learner_params(learner, learner_params)
   cl <- match.call()
 
   if (!is.null(data) || !is.null(outcome) || !is.null(treatment) || !is.null(controls) || !is.null(second_stage_controls)) {
@@ -46,6 +48,7 @@ fit_mm_dml <- function(x = NULL,
       second_stage_controls = second_stage_controls,
       data = data,
       learner = learner,
+      learner_params = learner_params,
       se_type = se_type,
       bootstrap_replications = bootstrap_replications,
       bootstrap_seed = bootstrap_seed,
@@ -70,6 +73,7 @@ fit_mm_dml <- function(x = NULL,
     d = d,
     y = y,
     learner = learner,
+    learner_params = learner_params,
     se_type = se_type,
     bootstrap_replications = bootstrap_replications,
     bootstrap_seed = bootstrap_seed,
@@ -90,6 +94,7 @@ fit_mm_dml <- function(x = NULL,
                                d,
                                y,
                                learner,
+                               learner_params,
                                se_type,
                                bootstrap_replications,
                                bootstrap_seed,
@@ -129,6 +134,7 @@ fit_mm_dml <- function(x = NULL,
       d = as.numeric(d[, 1]),
       y = y,
       learner = learner,
+      learner_params = learner_params,
       se_type = se_type,
       bootstrap_replications = bootstrap_replications,
       bootstrap_seed = bootstrap_seed,
@@ -153,6 +159,7 @@ fit_mm_dml <- function(x = NULL,
     d = d,
     y = y,
     learner = learner,
+    learner_params = learner_params,
     folds = folds,
     fold_type = fold_type,
     block_id = NULL,
@@ -171,6 +178,7 @@ fit_mm_dml <- function(x = NULL,
       d = d,
       y = y,
       learner = learner,
+      learner_params = learner_params,
       folds = folds,
       fold_type = fold_type,
       block_id = NULL,
@@ -207,6 +215,7 @@ fit_mm_dml <- function(x = NULL,
                              second_stage_controls,
                              data,
                              learner,
+                             learner_params,
                              se_type,
                              bootstrap_replications,
                              bootstrap_seed,
@@ -271,6 +280,7 @@ fit_mm_dml <- function(x = NULL,
       d = as.numeric(d_mat[, 1]),
       y = y_vec,
       learner = learner,
+      learner_params = learner_params,
       se_type = se_type,
       bootstrap_replications = bootstrap_replications,
       bootstrap_seed = bootstrap_seed,
@@ -297,6 +307,7 @@ fit_mm_dml <- function(x = NULL,
     d = d_mat,
     y = y_vec,
     learner = learner,
+    learner_params = learner_params,
     folds = folds,
     fold_type = fold_type,
     block_id = if (!is.null(block_column)) df[[block_column]] else NULL,
@@ -322,6 +333,7 @@ fit_mm_dml <- function(x = NULL,
       d = d_mat,
       y = y_vec,
       learner = learner,
+      learner_params = learner_params,
       folds = folds,
       fold_type = fold_type,
       block_id = if (!is.null(block_column)) df[[block_column]] else NULL,
@@ -362,6 +374,7 @@ fit_mm_dml <- function(x = NULL,
                                       d,
                                       y,
                                       learner,
+                                      learner_params,
                                       se_type,
                                       bootstrap_replications,
                                       bootstrap_seed,
@@ -380,6 +393,7 @@ fit_mm_dml <- function(x = NULL,
     as.numeric(d),
     as.numeric(y),
     learner,
+    learner_params,
     as.integer(folds),
     as.integer(seed),
     as.numeric(mm_c),
@@ -390,6 +404,7 @@ fit_mm_dml <- function(x = NULL,
 
   fit$backend <- "cpp"
   fit$learner_name <- learner
+  fit$learner_params <- learner_params
   fit$call <- original_call %||% match.call()
   fit$treatment_name <- "d"
   fit$treatment_names <- "d"
@@ -409,6 +424,7 @@ fit_mm_dml <- function(x = NULL,
       d = as.numeric(d),
       y = as.numeric(y),
       learner = learner,
+      learner_params = learner_params,
       folds = folds,
       progress = progress,
       seed = seed,
@@ -435,6 +451,7 @@ fit_mm_dml <- function(x = NULL,
                                     d,
                                     y,
                                     learner,
+                                    learner_params,
                                     folds,
                                     fold_type,
                                     block_id,
@@ -450,6 +467,7 @@ fit_mm_dml <- function(x = NULL,
     d = d,
     y = y,
     learner = learner,
+    learner_params = learner_params,
     folds = folds,
     fold_type = fold_type,
     block_id = block_id,
@@ -494,6 +512,7 @@ fit_mm_dml <- function(x = NULL,
     call = call,
     learner_name = .learner_label(learner),
     learner = learner,
+    learner_params = learner_params,
     backend = "r-joint",
     folds = as.integer(folds),
     nobs = nrow(as.matrix(x)),
@@ -525,6 +544,7 @@ fit_mm_dml <- function(x = NULL,
                                      d,
                                      y,
                                      learner,
+                                     learner_params,
                                      folds,
                                      progress,
                                      seed,
@@ -551,6 +571,7 @@ fit_mm_dml <- function(x = NULL,
           as.numeric(d[draws[[b]]]),
           as.numeric(y[draws[[b]]]),
           learner,
+          learner_params,
           as.integer(folds),
           as.integer(seed + b),
           as.numeric(mm_c),
@@ -569,6 +590,9 @@ fit_mm_dml <- function(x = NULL,
   estimates <- do.call(rbind, estimates_list)
   colnames(estimates) <- c("(Intercept)", "d")
   estimates <- estimates[stats::complete.cases(estimates), , drop = FALSE]
+  if (nrow(estimates) == 0L) {
+    stop("All native MM-DML bootstrap replications failed.", call. = FALSE)
+  }
   alpha <- (1 - ci_level) / 2
 
   list(
@@ -583,6 +607,7 @@ fit_mm_dml <- function(x = NULL,
                                     d,
                                     y,
                                     learner,
+                                    learner_params,
                                     folds,
                                     fold_type,
                                     block_id,
@@ -613,6 +638,7 @@ fit_mm_dml <- function(x = NULL,
           d = d[draws[[b]], , drop = FALSE],
           y = y[draws[[b]]],
           learner = learner,
+          learner_params = learner_params,
           folds = folds,
           fold_type = fold_type,
           block_id = if (is.null(block_id)) NULL else block_id[draws[[b]]],
@@ -646,6 +672,7 @@ fit_mm_dml <- function(x = NULL,
             d = d[draws[[b]], , drop = FALSE],
             y = y[draws[[b]]],
             learner = learner,
+            learner_params = learner_params,
             folds = folds,
             fold_type = fold_type,
             block_id = if (is.null(block_id)) NULL else block_id[draws[[b]]],
@@ -793,6 +820,7 @@ fit_mm_dml <- function(x = NULL,
                                       d,
                                       y,
                                       learner,
+                                      learner_params,
                                       folds = 2L,
                                       fold_type = c("random", "spatial_block"),
                                       block_id = NULL,
@@ -819,6 +847,7 @@ fit_mm_dml <- function(x = NULL,
       y_train = y[train_idx],
       x_test = x[test_idx, , drop = FALSE],
       learner = learner,
+      learner_params = learner_params,
       seed = seed + fold,
       role = "y"
     )
@@ -828,6 +857,7 @@ fit_mm_dml <- function(x = NULL,
         y_train = d[train_idx, j],
         x_test = x[test_idx, , drop = FALSE],
         learner = learner,
+        learner_params = learner_params,
         seed = seed + 100L * j + fold,
         role = "t"
       )
@@ -879,7 +909,7 @@ fit_mm_dml <- function(x = NULL,
   NULL
 }
 
-.predict_nuisance <- function(x_train, y_train, x_test, learner, seed, role = c("y", "t")) {
+.predict_nuisance <- function(x_train, y_train, x_test, learner, learner_params, seed, role = c("y", "t")) {
   role <- match.arg(role)
   x_train_df <- .as_feature_frame(x_train)
   x_test_df <- .as_feature_frame(x_test, template = x_train_df)
@@ -892,7 +922,7 @@ fit_mm_dml <- function(x = NULL,
   }
 
   learner_name <- .normalize_learner_name(learner)
-  predictor <- .nuisance_fitters()[[learner_name]]
+  predictor <- .nuisance_fitters(learner_params)[[learner_name]]
   if (is.null(predictor)) {
     stop("Unsupported learner: ", learner_name, call. = FALSE)
   }
@@ -969,6 +999,73 @@ fit_mm_dml <- function(x = NULL,
   stop("Unsupported `learner`. Use a named learner string or `make_custom_learner(...)`.", call. = FALSE)
 }
 
+.normalize_mm_dml_learner_params <- function(learner, learner_params) {
+  if (is.null(learner_params)) {
+    return(list())
+  }
+  if (!is.list(learner_params)) {
+    stop("`learner_params` must be NULL or a named list.", call. = FALSE)
+  }
+  if (length(learner_params) == 0L) {
+    return(list())
+  }
+  if (is.null(names(learner_params)) || anyNA(names(learner_params)) || any(names(learner_params) == "")) {
+    stop("`learner_params` must be a named list.", call. = FALSE)
+  }
+
+  if (!is.character(learner) || length(learner) != 1L) {
+    return(learner_params)
+  }
+
+  defaults <- switch(
+    learner,
+    lasso = list(
+      cv_folds = 3L,
+      n_lambda = 100L,
+      lambda_min_ratio = 1e-4,
+      standardize = TRUE,
+      lambda_grid = NULL,
+      use_lambda_1se = FALSE,
+      max_iter = 250L,
+      tolerance = 1e-6
+    ),
+    elastic_net = list(
+      cv_folds = 3L,
+      n_lambda = 100L,
+      lambda_min_ratio = 1e-4,
+      standardize = TRUE,
+      lambda_grid = NULL,
+      use_lambda_1se = FALSE,
+      max_iter = 250L,
+      tolerance = 1e-6,
+      l1_ratios = c(0.1, 0.5, 0.9, 0.95, 1.0)
+    ),
+    random_forest = list(
+      n_estimators = 300L,
+      max_depth = 8L,
+      min_samples_split = 10L,
+      min_samples_leaf = 5L,
+      max_features = NULL,
+      max_features_fraction = NULL,
+      sample_fraction = 0.632,
+      bootstrap = TRUE,
+      replacement = TRUE,
+      split_candidates = 16L,
+      compute_oob = TRUE,
+      compute_importance = TRUE
+    ),
+    hist_gradient_boosting = list(
+      max_depth = 6L,
+      min_samples_leaf = 5L,
+      max_features = NULL,
+      max_iter = 200L,
+      learning_rate = 0.05
+    ),
+    list()
+  )
+  modifyList(defaults, learner_params)
+}
+
 .normalize_learner_name <- function(learner) {
   aliases <- c(
     rf = "random_forest",
@@ -998,7 +1095,7 @@ fit_mm_dml <- function(x = NULL,
   "custom"
 }
 
-.nuisance_fitters <- function() {
+.nuisance_fitters <- function(learner_params = NULL) {
   list(
     ols = function(x_train, y_train, x_test, seed) {
       fit <- stats::lm.fit(x = cbind(1, data.matrix(x_train)), y = y_train)
@@ -1008,25 +1105,82 @@ fit_mm_dml <- function(x = NULL,
       if (!requireNamespace("glmnet", quietly = TRUE)) {
         stop("The `glmnet` package is required for learner = 'lasso'.", call. = FALSE)
       }
-      fit <- glmnet::cv.glmnet(x = data.matrix(x_train), y = y_train, alpha = 1, family = "gaussian")
-      as.numeric(stats::predict(fit, newx = data.matrix(x_test), s = "lambda.min"))
+      params <- modifyList(list(
+        cv_folds = 3L,
+        n_lambda = 100L,
+        lambda_min_ratio = 1e-4,
+        standardize = TRUE,
+        lambda_grid = NULL,
+        use_lambda_1se = FALSE
+      ), learner_params %||% list())
+      fit <- glmnet::cv.glmnet(
+        x = data.matrix(x_train),
+        y = y_train,
+        alpha = 1,
+        family = "gaussian",
+        nfolds = params$cv_folds,
+        nlambda = params$n_lambda,
+        lambda.min.ratio = params$lambda_min_ratio,
+        standardize = isTRUE(params$standardize),
+        lambda = params$lambda_grid
+      )
+      as.numeric(stats::predict(
+        fit,
+        newx = data.matrix(x_test),
+        s = if (isTRUE(params$use_lambda_1se)) "lambda.1se" else "lambda.min"
+      ))
     },
     elastic_net = function(x_train, y_train, x_test, seed) {
       if (!requireNamespace("glmnet", quietly = TRUE)) {
         stop("The `glmnet` package is required for learner = 'elastic_net'.", call. = FALSE)
       }
-      fit <- glmnet::cv.glmnet(x = data.matrix(x_train), y = y_train, alpha = 0.5, family = "gaussian")
-      as.numeric(stats::predict(fit, newx = data.matrix(x_test), s = "lambda.min"))
+      params <- modifyList(list(
+        cv_folds = 3L,
+        n_lambda = 100L,
+        lambda_min_ratio = 1e-4,
+        standardize = TRUE,
+        lambda_grid = NULL,
+        alpha = 0.5,
+        use_lambda_1se = FALSE
+      ), learner_params %||% list())
+      fit <- glmnet::cv.glmnet(
+        x = data.matrix(x_train),
+        y = y_train,
+        alpha = params$alpha,
+        family = "gaussian",
+        nfolds = params$cv_folds,
+        nlambda = params$n_lambda,
+        lambda.min.ratio = params$lambda_min_ratio,
+        standardize = isTRUE(params$standardize),
+        lambda = params$lambda_grid
+      )
+      as.numeric(stats::predict(
+        fit,
+        newx = data.matrix(x_test),
+        s = if (isTRUE(params$use_lambda_1se)) "lambda.1se" else "lambda.min"
+      ))
     },
     random_forest = function(x_train, y_train, x_test, seed) {
       if (!requireNamespace("ranger", quietly = TRUE)) {
         stop("The `ranger` package is required for learner = 'random_forest'.", call. = FALSE)
       }
+      params <- modifyList(list(
+        n_estimators = 300L,
+        min_samples_leaf = 5L,
+        max_depth = NULL,
+        max_features = NULL,
+        sample_fraction = NULL,
+        replacement = TRUE
+      ), learner_params %||% list())
       fit <- ranger::ranger(
         x = x_train,
         y = y_train,
-        num.trees = 300,
-        min.node.size = 5,
+        num.trees = params$n_estimators,
+        min.node.size = params$min_samples_leaf,
+        max.depth = params$max_depth,
+        mtry = params$max_features %||% max(1L, floor(sqrt(ncol(x_train)))),
+        sample.fraction = params$sample_fraction,
+        replace = isTRUE(params$replacement),
         seed = seed,
         num.threads = 1
       )
@@ -1034,7 +1188,7 @@ fit_mm_dml <- function(x = NULL,
     },
     hist_gradient_boosting = function(x_train, y_train, x_test, seed) {
       if (!requireNamespace("xgboost", quietly = TRUE)) {
-        return(.nuisance_fitters()$random_forest(x_train, y_train, x_test, seed))
+        return(.nuisance_fitters(learner_params)$random_forest(x_train, y_train, x_test, seed))
       }
       dtrain <- xgboost::xgb.DMatrix(data = data.matrix(x_train), label = y_train)
       dtest <- xgboost::xgb.DMatrix(data = data.matrix(x_test))
@@ -1054,7 +1208,7 @@ fit_mm_dml <- function(x = NULL,
       as.numeric(stats::predict(fit, dtest))
     },
     xgboost = function(x_train, y_train, x_test, seed) {
-      .nuisance_fitters()$hist_gradient_boosting(x_train, y_train, x_test, seed)
+      .nuisance_fitters(learner_params)$hist_gradient_boosting(x_train, y_train, x_test, seed)
     },
     gam = function(x_train, y_train, x_test, seed) {
       if (!requireNamespace("mgcv", quietly = TRUE)) {
@@ -1065,7 +1219,7 @@ fit_mm_dml <- function(x = NULL,
     },
     spatial_gam = function(x_train, y_train, x_test, seed) {
       if (!all(c("X", "Y") %in% names(x_train))) {
-        return(.nuisance_fitters()$gam(x_train, y_train, x_test, seed))
+        return(.nuisance_fitters(learner_params)$gam(x_train, y_train, x_test, seed))
       }
       if (!requireNamespace("mgcv", quietly = TRUE)) {
         stop("The `mgcv` package is required for learner = 'spatial_gam'.", call. = FALSE)
@@ -1156,7 +1310,8 @@ summary.robustcause_mm_dml <- function(object, ...) {
       fold_type = object$fold_type %||% "random",
       se_type = object$se_type %||% "analytic",
       bootstrap_replications = object$bootstrap_replications %||% 0L,
-      n_cores = object$n_cores %||% 1L
+      n_cores = object$n_cores %||% 1L,
+      learner_details = object$learner_details %||% NULL
     ),
     class = "summary.robustcause_mm_dml"
   )
@@ -1178,6 +1333,13 @@ print.summary.robustcause_mm_dml <- function(x, digits = max(3L, getOption("digi
   stats::printCoefmat(x$coefficients, digits = digits, signif.stars = TRUE, na.print = "NA")
   cat("\n")
   cat(sprintf("Fold assignment: %s\n", x$fold_type))
+  if (!is.null(x$learner_details)) {
+    detail_lines <- .format_mm_dml_learner_details(x$learner_details)
+    if (length(detail_lines) > 0L) {
+      cat("Learner details:\n")
+      cat(paste0("  ", detail_lines, collapse = "\n"), "\n")
+    }
+  }
   if (identical(x$se_type, "bootstrap")) {
     cat(sprintf("SE method: bootstrap | Bootstrap replications: %d | Cores: %d\n", x$bootstrap_replications, x$n_cores))
   } else {
@@ -1317,6 +1479,45 @@ plot_marginal_effect <- function(fit,
     return(out)
   }
   stop("Analytic covariance matrix is not available for the requested marginal effect.", call. = FALSE)
+}
+
+.format_mm_dml_learner_details <- function(details) {
+  if (!is.list(details)) {
+    return(character(0))
+  }
+  out <- character(0)
+  for (role in intersect(c("y", "d"), names(details))) {
+    info <- details[[role]]
+    if (!is.list(info)) {
+      next
+    }
+    parts <- character(0)
+    if (!is.null(info$selected_lambda) && is.finite(info$selected_lambda)) {
+      parts <- c(parts, sprintf("lambda=%.4g", info$selected_lambda))
+    }
+    if (!is.null(info$lambda_min) && is.finite(info$lambda_min) && !identical(info$lambda_min, info$selected_lambda)) {
+      parts <- c(parts, sprintf("lambda.min=%.4g", info$lambda_min))
+    }
+    if (!is.null(info$lambda_1se) && is.finite(info$lambda_1se)) {
+      parts <- c(parts, sprintf("lambda.1se=%.4g", info$lambda_1se))
+    }
+    if (!is.null(info$cv_error) && is.finite(info$cv_error)) {
+      parts <- c(parts, sprintf("cv_mse=%.4g", info$cv_error))
+    }
+    if (!is.null(info$nonzero) && is.finite(info$nonzero)) {
+      parts <- c(parts, sprintf("nonzero=%d", as.integer(info$nonzero)))
+    }
+    if (!is.null(info$oob_error) && is.finite(info$oob_error)) {
+      parts <- c(parts, sprintf("oob_mse=%.4g", info$oob_error))
+    }
+    if (!is.null(info$num_trees) && is.finite(info$num_trees)) {
+      parts <- c(parts, sprintf("trees=%d", as.integer(info$num_trees)))
+    }
+    if (length(parts) > 0L) {
+      out <- c(out, sprintf("%s-model: %s", role, paste(parts, collapse = " | ")))
+    }
+  }
+  out
 }
 
 `%||%` <- function(x, y) {

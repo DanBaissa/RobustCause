@@ -44,6 +44,7 @@ RobustCause currently includes:
 - an installable C++ core library with CMake packaging
 - shared C++ modules for robust regression, S-estimation, adstock, and MMM
 - an R package wrapper with compiled native code
+- native C++ MM-DML nuisance learners with tunable lasso and random-forest backends
 - robust inference helpers for both RobustCause fits and base R `lm` objects
 - a smoke-test and showcase notebook in `bindings/r/robustcause/robustcause-smoke-test.Rmd`
 
@@ -252,9 +253,37 @@ Current wrapper supports:
   - `"elastic_net"`
   - `"random_forest"`
   - `"hist_gradient_boosting"`
+- `learner_params` for learner-specific tuning
 - `se_type = "analytic"` or `se_type = "bootstrap"`
 - bootstrap repetition control and multicore bootstrap execution
-- `summary()` output with coefficient table, learner, fold count, backend, and convergence info
+- `summary()` output with coefficient table, learner, fold count, backend, convergence info, and native learner diagnostics when available
+
+For the native compiled single-treatment random-fold path:
+
+- `"lasso"` now exposes:
+  - `cv_folds`
+  - `n_lambda`
+  - `lambda_min_ratio`
+  - optional `lambda_grid`
+  - `use_lambda_1se`
+  - `standardize`
+  - `max_iter`
+  - `tolerance`
+- `"random_forest"` now exposes:
+  - `n_estimators`
+  - `max_depth`
+  - `min_samples_split`
+  - `min_samples_leaf`
+  - `max_features`
+  - `max_features_fraction`
+  - `sample_fraction`
+  - `bootstrap`
+  - `replacement`
+  - `split_candidates`
+  - `compute_oob`
+  - `compute_importance`
+
+Native fit objects now carry learner diagnostics in `fit$learner_details`. For lasso that includes selected lambda, `lambda.min`, `lambda.1se`, CV error, and nonzero count. For random forest that includes OOB error, tree count, feature importance, and feature use counts.
 
 Example:
 
@@ -274,6 +303,11 @@ fit <- fit_mm_dml(
   controls = paste0("x", 1:6),
   data = toy_df,
   learner = "lasso",
+  learner_params = list(
+    cv_folds = 4L,
+    n_lambda = 80L,
+    use_lambda_1se = TRUE
+  ),
   se_type = "bootstrap",
   bootstrap_replications = 50,
   n_cores = 2L,
@@ -283,6 +317,32 @@ fit <- fit_mm_dml(
 
 summary(fit)
 ```
+
+Native random-forest tuning works the same way:
+
+```r
+fit_rf <- fit_mm_dml(
+  outcome = "y",
+  treatment = "d",
+  controls = paste0("x", 1:6),
+  data = toy_df,
+  learner = "random_forest",
+  learner_params = list(
+    n_estimators = 200L,
+    max_depth = 7L,
+    min_samples_split = 8L,
+    min_samples_leaf = 4L,
+    sample_fraction = 0.7
+  ),
+  folds = 3,
+  seed = 101
+)
+
+summary(fit_rf)
+fit_rf$learner_details
+```
+
+Use `make_custom_learner()` when you want to plug in a fully custom nuisance model such as your own neural net or GBM pipeline. Use named learners plus `learner_params` when you want to stay on the compiled native C++ path.
 
 ## Robust Adstock
 

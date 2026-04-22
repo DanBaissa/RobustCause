@@ -33,6 +33,11 @@ Supported specification styles:
 
 This lets users plug in arbitrary model pipelines without waiting for the package
 to add a named learner wrapper.
+
+Use this helper when you want a completely custom nuisance model. If you want to
+stay on the native compiled backend for the built-in learners, prefer
+\code{learner = "lasso"} or \code{learner = "random_forest"} together with
+\code{learner_params = list(...)} in \code{fit_mm_dml()}.
 }
 \examples{
 custom_lm <- make_custom_learner(

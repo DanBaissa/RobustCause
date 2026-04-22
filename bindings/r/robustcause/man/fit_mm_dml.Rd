@@ -14,6 +14,7 @@ fit_mm_dml(
   second_stage_controls = NULL,
   data = NULL,
   learner = c("lasso", "elastic_net", "random_forest", "hist_gradient_boosting"),
+  learner_params = NULL,
   se_type = c("analytic", "bootstrap"),
   bootstrap_replications = 200L,
   bootstrap_seed = NULL,
@@ -41,6 +42,7 @@ fit_mm_dml(
   \item{second_stage_controls}{Optional columns to include directly in the final MM second stage after nuisance residualization.}
   \item{data}{Optional data frame interface.}
   \item{learner}{A named nuisance learner or a custom learner object created with \code{make_custom_learner()}.}
+  \item{learner_params}{Optional named list of learner-specific tuning controls. Native C++ \code{"lasso"} and \code{"random_forest"} now expose substantial tuning knobs through this argument.}
   \item{se_type}{Either \code{"analytic"} or \code{"bootstrap"}.}
   \item{bootstrap_replications}{Number of bootstrap resamples when \code{se_type = "bootstrap"}.}
   \item{bootstrap_seed}{Optional bootstrap seed override.}
@@ -102,6 +104,36 @@ contain outliers or heavy tails.
 }
 
 Built-in learner names currently include \code{"lasso"}, \code{"elastic_net"}, \code{"random_forest"}, \code{"hist_gradient_boosting"}, \code{"ols"}, \code{"xgboost"}, \code{"gam"}, and \code{"spatial_gam"}. Some of these rely on optional packages that are loaded only when needed.
+
+Native C++ \code{"lasso"} supports richer controls through \code{learner_params}, including:
+\itemize{
+\item \code{cv_folds}
+\item \code{n_lambda}
+\item \code{lambda_min_ratio}
+\item \code{lambda_grid}
+\item \code{use_lambda_1se}
+\item \code{standardize}
+\item \code{max_iter}
+\item \code{tolerance}
+}
+
+Native C++ \code{"random_forest"} supports:
+\itemize{
+\item \code{n_estimators}
+\item \code{max_depth}
+\item \code{min_samples_split}
+\item \code{min_samples_leaf}
+\item \code{max_features}
+\item \code{max_features_fraction}
+\item \code{sample_fraction}
+\item \code{bootstrap}
+\item \code{replacement}
+\item \code{split_candidates}
+\item \code{compute_oob}
+\item \code{compute_importance}
+}
+
+For native fits, \code{summary(fit)} now prints learner diagnostics. The raw values are also available in \code{fit$learner_details}, including selected lambda / nonzero counts for lasso and OOB error / feature importance for random forest.
 
 For custom nuisance models, use \code{make_custom_learner()} and provide \code{model_y} and \code{model_t} objects as either:
 \enumerate{
