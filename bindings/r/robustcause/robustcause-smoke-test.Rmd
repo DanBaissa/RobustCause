@@ -5,43 +5,15 @@ output: html_document
 
 ```{r setup}
 knitr::opts_chunk$set(comment = "#>", collapse = TRUE)
-pkg_lib <- file.path(tempdir(), "robustcause-rmd-lib")
+pkg_lib <- normalizePath(file.path(getwd(), ".robustcause-rmd-lib"), winslash = "/", mustWork = FALSE)
 dir.create(pkg_lib, recursive = TRUE, showWarnings = FALSE)
-.libPaths(c(pkg_lib, .libPaths()))
+.libPaths(c(pkg_lib, .Library))
+if ("robustcause" %in% loadedNamespaces()) unloadNamespace("robustcause")
+install.packages("remotes", lib = pkg_lib, repos = "https://cloud.r-project.org")
+remotes::install_github("DanBaissa/RobustCause", subdir = "bindings/r/robustcause", lib = pkg_lib, upgrade = "never", force = TRUE, dependencies = TRUE, quiet = FALSE)
 
-if ("package:robustcause" %in% search()) {
-  detach("package:robustcause", unload = TRUE, character.only = TRUE)
-}
-if ("robustcause" %in% loadedNamespaces()) {
-  unloadNamespace("robustcause")
-}
-
-if (!requireNamespace("remotes", quietly = TRUE)) {
-  install.packages("remotes", lib = pkg_lib, repos = "https://cloud.r-project.org")
-}
-
-local_source <- Sys.getenv("ROBUSTCAUSE_LOCAL_SOURCE", unset = "")
-if (nzchar(local_source) && dir.exists(local_source)) {
-  remotes::install_local(
-    local_source,
-    lib = pkg_lib,
-    upgrade = "never",
-    force = TRUE,
-    dependencies = TRUE,
-    quiet = TRUE
-  )
-} else {
-  remotes::install_github(
-    "DanBaissa/RobustCause",
-    subdir = "bindings/r/robustcause",
-    lib = pkg_lib,
-    upgrade = "never",
-    force = TRUE,
-    dependencies = TRUE,
-    quiet = TRUE
-  )
-}
-
+library(robustcause, lib.loc = pkg_lib)
+stopifnot("method" %in% names(formals(robustcause::fit_rlm)))
 set.seed(42)
 ```
 
@@ -68,6 +40,7 @@ mm_fit <- robustcause::fit_rlm(
   X,
   y,
   method = "mm",
+  tuning = 4.685,
   mm_s_control = list(n_starts = 100, fast_s_screen_subsets = 100, fast_s_keep = 20)
 )
 s_fit <- robustcause::fit_s_estimator(
@@ -77,6 +50,8 @@ s_fit <- robustcause::fit_s_estimator(
   fast_s_screen_subsets = 100,
   fast_s_keep = 20
 )
+mass_m_huber_fit <- MASS::rlm(y ~ x1 + x2 + x3, data = dat, method = "M", psi = MASS::psi.huber)
+mass_mm_fit <- MASS::rlm(y ~ x1 + x2 + x3, data = dat, method = "MM")
 ols_fit <- lm(y ~ x1 + x2 + x3, data = dat)
 ```
 
@@ -86,11 +61,28 @@ coef_table <- rbind(
   M_Huber = setNames(as.numeric(m_huber_fit$coef), m_huber_fit$coef_names),
   M_Tukey = setNames(as.numeric(m_tukey_fit$coef), m_tukey_fit$coef_names),
   MM = setNames(as.numeric(mm_fit$coef), mm_fit$coef_names),
-  S = setNames(as.numeric(s_fit$coef), s_fit$coef_names)
+  S = setNames(as.numeric(s_fit$coef), s_fit$coef_names),
+  MASS_M_Huber = coef(mass_m_huber_fit),
+  MASS_MM = coef(mass_mm_fit)
 )
 
 round(coef_table, 4)
 ```
+
+```{r}
+true_coef <- c("(Intercept)" = 1, x1 = 2, x2 = -1.2, x3 = 0.8)
+coef_error <- sweep(coef_table, 2, true_coef, "-")
+
+accuracy_compare <- data.frame(
+  rmse = sqrt(rowMeans(coef_error^2)),
+  mae = rowMeans(abs(coef_error)),
+  max_abs_error = apply(abs(coef_error), 1, max),
+  row.names = rownames(coef_table)
+)
+
+round(accuracy_compare[order(accuracy_compare$rmse), , drop = FALSE], 4)
+```
+
 
 ```{r}
 m_huber_fit

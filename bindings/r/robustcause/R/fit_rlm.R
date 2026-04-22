@@ -110,6 +110,9 @@
                               ridge,
                               min_weight,
                               mm_s_control = NULL) {
+  if (is.null(tuning)) {
+    tuning <- if (identical(.rlm_method_name(method), "mm")) 4.685 else 1.345
+  }
   list(
     method = .rlm_method_name(method),
     psi = .psi_name(psi, method),
@@ -139,7 +142,7 @@ fit_rlm <- function(x,
                     data = NULL,
                     method = c("m", "mm"),
                     psi = NULL,
-                    tuning = 1.345,
+                    tuning = NULL,
                     maxit = 100L,
                     tol = 1e-8,
                     add_intercept = TRUE,
