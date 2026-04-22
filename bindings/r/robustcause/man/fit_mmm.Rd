@@ -14,6 +14,7 @@ fit_mmm(
   channel_cols = NULL,
   preclean_cols = NULL,
   control_cols = NULL,
+  robustness = NULL,
   fit_method = c("huber", "ols", "s", "mm"),
   rho = 0.85,
   increment_method = "adaptive_clip",
@@ -25,6 +26,10 @@ fit_mmm(
   clip_c = 1.5,
   adaptive_upper = 0,
   apply_hill = TRUE,
+  rho_grid = NULL,
+  hill_grid = NULL,
+  choose_by = c("bic", "aic", "mse"),
+  max_grid_size = 2500L,
   huber_c = 1.345,
   huber_max_iter = 75L,
   s_starts = 20L,
@@ -35,13 +40,15 @@ fit_mmm(
 )
 }
 \description{
-Fits a robust multi-channel marketing mix model with optional first-step channel
-cleaning, adstock carryover, Hill saturation, and a robust final regression.
+Fits a multi-channel marketing mix model with optional first-step channel
+cleaning, adstock carryover, Hill saturation, robust final regression, and
+optional grid search over channel-level carryover and saturation parameters.
 }
 \value{
 An object of class \code{robustcause_mmm} containing the fitted coefficients,
-per-channel cleaned signals, stocks, transformed regressors, and the final
-design matrix used in the regression.
+per-channel cleaned signals, stocks, transformed regressors, the final design
+matrix used in the regression, and optionally a model-search table when grid
+search is used.
 }
 \arguments{
   \item{y}{Numeric outcome vector for the matrix interface.}
@@ -55,6 +62,7 @@ design matrix used in the regression.
   \item{channel_cols}{Media channel columns in \code{data}.}
   \item{preclean_cols}{Columns used in the channel-cleaning stage.}
   \item{control_cols}{Columns used in the final regression stage.}
+  \item{robustness}{Optional high-level profile: \code{"classical"}, \code{"huber"}, \code{"s"}, \code{"mm"}, or \code{"custom"}. When supplied, this sets coherent defaults for the cleaning stage, adstock increment rule, and final regression.}
   \item{fit_method}{Final regression type: \code{"ols"}, \code{"huber"}, \code{"s"}, or \code{"mm"}.}
   \item{rho}{Carryover parameter, scalar or one value per channel.}
   \item{increment_method}{Adstock increment rule, scalar or one value per channel.}
@@ -66,6 +74,10 @@ design matrix used in the regression.
   \item{clip_c}{Bounding constant for robust increment rules.}
   \item{adaptive_upper}{Optional threshold for \code{"adaptive_clip"}.}
   \item{apply_hill}{Whether to apply Hill saturation, scalar or one value per channel.}
+  \item{rho_grid}{Optional shared or per-channel grid for searching over carryover parameters. Supply either a numeric vector shared across channels or a list with one numeric vector per channel.}
+  \item{hill_grid}{Optional shared or per-channel grid for searching over Hill saturation parameters. Supply either a numeric vector shared across channels or a list with one numeric vector per channel.}
+  \item{choose_by}{Criterion used to rank search candidates.}
+  \item{max_grid_size}{Upper bound on the total number of search candidates.}
   \item{huber_c}{Huber tuning constant for the final Huber regression.}
   \item{huber_max_iter}{Maximum Huber iterations.}
   \item{s_starts}{Number of S-estimator starts.}
@@ -93,9 +105,18 @@ just a stock series. It is the right entry point when you care about channel
 coefficients, transformed regressors, and the final design actually used in the
 MMM.
 
+\strong{Fixed specification vs. model search:}
+
+\itemize{
+\item If you supply fixed values for \code{rho} and \code{hill_lambda}, \code{fit_mmm()} fits that exact MMM specification.
+\item If you supply \code{rho_grid} and/or \code{hill_grid}, the function evaluates the candidate MMM specifications and chooses the best one by \code{BIC}, \code{AIC}, or \code{MSE}.
+\item Search grids can be shared across channels or specified per channel.
+}
+
 \strong{Practical defaults:}
 
 \itemize{
+\item Use \code{robustness = "classical"} for a plain baseline MMM.
 \item Start with \code{fit_method = "huber"} or \code{"mm"}.
 \item Use \code{preclean = TRUE} when raw channel spikes are plausible.
 \item Use \code{increment_method = "adaptive_clip"} or \code{"huber"} as robust first choices.
@@ -110,6 +131,7 @@ MMM.
 \item \code{fit\$stocks} for carryover stocks
 \item \code{fit\$transformed_channels} for the regressors actually entering the final regression
 \item \code{fit\$design_matrix} for the full final design
+\item \code{fit\$grid_results} when using model search
 }
 }
 \examples{
@@ -138,10 +160,10 @@ fit <- fit_mmm(
   channel_cols = c("channel_1", "channel_2"),
   preclean_cols = c("x1", "x2"),
   control_cols = c("x1", "x2"),
-  fit_method = "huber",
-  rho = c(0.8, 0.75),
-  increment_method = c("adaptive_clip", "huber"),
-  hill_lambda = c(0.12, 0.10)
+  robustness = "mm",
+  rho_grid = list(c(0.6, 0.8), c(0.5, 0.75)),
+  hill_grid = list(c(0.05, 0.12), c(0.05, 0.10)),
+  choose_by = "bic"
 )
 
 summary(fit)

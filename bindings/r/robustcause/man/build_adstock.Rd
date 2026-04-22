@@ -69,6 +69,14 @@ fit a full marketing mix model. It is useful for:
 \item stress-testing whether outliers in the raw signal are driving your carryover measure
 }
 
+\strong{Transformer vs. full model:}
+
+\itemize{
+\item Use \code{build_adstock()} when you want the stock series itself.
+\item Use \code{fit_adstock_model()} when you want an end-to-end single-signal adstock response model with parameter search and a downstream regression.
+\item Use \code{fit_mmm()} when you want the multi-channel generalization.
+}
+
 \strong{Precleaning:}
 
 \itemize{

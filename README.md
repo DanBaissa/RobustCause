@@ -9,7 +9,8 @@ The project is organized around a shared numerical backend:
 - heteroskedasticity-consistent covariance estimators for robust and classical linear models
 - MM double machine learning for partially linear treatment effects
 - robust adstock construction with optional S/MM precleaning
-- robust marketing mix modeling with per-channel cleaning, carryover, Hill saturation, and robust final regression
+- end-to-end adstock response modeling with parameter search
+- robust marketing mix modeling with per-channel cleaning, carryover, Hill saturation, robust final regression, and optional parameter search
 
 ## What The API Does
 
@@ -21,6 +22,7 @@ That package exposes a consistent set of fit objects with `print()` and `summary
 - `fit_s_estimator()` for standalone S-estimation
 - `fit_mm_dml()` for robust double machine learning
 - `build_adstock()` for robust carryover stock construction
+- `fit_adstock_model()` for end-to-end single-signal adstock response modeling
 - `fit_mmm()` for multi-channel marketing mix models
 
 The underlying C++ core lives in:
@@ -268,6 +270,39 @@ ad_fit <- build_adstock(
 summary(ad_fit)
 ```
 
+Use `build_adstock()` when you want the transformed stock itself. If you want the full adstock-response model with parameter search and a downstream regression, use `fit_adstock_model()`.
+
+### `fit_adstock_model()`
+
+Fits a complete single-signal adstock response model end to end.
+
+What it does:
+
+- searches over `rho` and Hill-saturation candidates
+- builds the stock and transformed stock
+- fits the downstream response model
+- supports full robustness levels:
+  - `"classical"`
+  - `"huber"`
+  - `"s"`
+  - `"mm"`
+- returns the selected model plus the full search table
+
+Example:
+
+```r
+fit_ad <- fit_adstock_model(
+  data = dat,
+  outcome = "y",
+  signal_col = "signal",
+  unit_col = "unit",
+  control_cols = "x1",
+  robustness = "classical"
+)
+
+summary(fit_ad)
+```
+
 ## Robust MMM
 
 ### `fit_mmm()`
@@ -279,14 +314,31 @@ Fits a multi-channel marketing mix model with the following pipeline for each ch
 3. optional Hill saturation
 4. final regression using OLS, Huber, S, or MM
 
+It supports two workflows:
+
+- fixed-specification MMM:
+  - provide `rho` and `hill_lambda` directly
+- searched MMM:
+  - provide `rho_grid` and/or `hill_grid`
+  - rank candidate models by `BIC`, `AIC`, or `MSE`
+
+It also supports high-level robustness profiles:
+
+- `robustness = "classical"`
+- `robustness = "huber"`
+- `robustness = "s"`
+- `robustness = "mm"`
+
 Important inputs:
 
 - `channel_cols`: media channels
 - `preclean_cols`: covariates used in the first-step cleaning stage
 - `control_cols`: final regression controls
-- `rho`: per-channel carryover parameters
+- `rho`: per-channel fixed carryover parameters
+- `rho_grid`: optional shared or per-channel carryover search grid
 - `increment_method`: per-channel adstock rule
-- `hill_lambda`: per-channel Hill saturation parameter
+- `hill_lambda`: per-channel fixed Hill saturation parameter
+- `hill_grid`: optional shared or per-channel Hill search grid
 - `fit_method`: one of `"ols"`, `"huber"`, `"s"`, `"mm"`
 
 The fit object includes:
@@ -297,7 +349,8 @@ The fit object includes:
 - carryover stocks
 - Hill-transformed channel regressors
 - final design matrix
-- structured `summary()` output with channel diagnostics and coefficient table
+- optional `grid_results` table when search is used
+- structured `summary()` output with channel diagnostics, selected channel configuration, and top search candidates
 
 Example:
 
@@ -309,12 +362,10 @@ mmm_fit <- fit_mmm(
   channel_cols = c("channel_1", "channel_2", "channel_3"),
   preclean_cols = c("x1", "x2"),
   control_cols = c("x1", "x2"),
-  fit_method = "huber",
-  rho = c(0.8, 0.75, 0.7),
-  increment_method = c("adaptive_clip", "huber", "tanh"),
-  hill_lambda = c(0.12, 0.10, 0.08),
-  preclean = c(TRUE, TRUE, TRUE),
-  preclean_method = c("mm", "mm", "s")
+  robustness = "mm",
+  rho_grid = list(c(0.6, 0.8), c(0.5, 0.75), c(0.4, 0.7)),
+  hill_grid = list(c(0.05, 0.12), c(0.05, 0.10), c(0.04, 0.08)),
+  choose_by = "bic"
 )
 
 summary(mmm_fit)
@@ -379,6 +430,7 @@ It currently covers:
 - HC0-HC5 inference for `lm`
 - MM-DML
 - adstock
+- end-to-end adstock modeling
 - MMM
 
 ## Roadmap
