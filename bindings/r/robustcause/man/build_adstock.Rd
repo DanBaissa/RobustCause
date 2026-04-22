@@ -57,6 +57,42 @@ Builds a plain or robust adstock series with optional first-step S- or MM-based
 signal cleaning. The interface supports both direct vector input and a data-frame
 workflow.
 }
+\details{
+\strong{When to use this model:}
+
+Use \code{build_adstock()} when you want a carryover stock but do not yet want to
+fit a full marketing mix model. It is useful for:
+
+\itemize{
+\item inspecting how different carryover rules transform a raw media series
+\item pre-building a stock variable for downstream causal or regression models
+\item stress-testing whether outliers in the raw signal are driving your carryover measure
+}
+
+\strong{Precleaning:}
+
+\itemize{
+\item Set \code{preclean = TRUE} when the raw signal may contain spikes, recording errors, or one-off bursts you do not want to feed directly into recursive stock accumulation.
+\item Use \code{preclean_method = "mm"} as the usual robust default.
+\item Use \code{preclean_method = "s"} when you want the more aggressively high-breakdown first step itself.
+}
+
+\strong{Increment rules:}
+
+\itemize{
+\item \code{"plain"} gives the usual non-robust recursive adstock.
+\item \code{"huber"} and \code{"adaptive_clip"} are good starting points when you want robustification but still want the series to behave like a familiar carryover stock.
+\item \code{"tanh"} and \code{"softsign"} give smoother bounded updates.
+}
+
+\strong{What to inspect after fitting:}
+
+\itemize{
+\item \code{summary(fit)} for signal, cleaned-signal, and stock summaries
+\item \code{fit\$cleaned_signal} to see how much the preclean stage moved the raw series
+\item \code{fit\$stock} as the final carryover series
+}
+}
 \examples{
 signal <- c(10, 12, 60, 9, 8, 40)
 unit_ids <- c(1, 1, 1, 2, 2, 2)

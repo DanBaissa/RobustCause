@@ -44,3 +44,15 @@ An invisible data frame containing the marginal effect estimates and intervals.
 Plots the marginal effect implied by a focal coefficient and an interaction
 coefficient from a fitted \code{fit_mm_dml()} model.
 }
+\details{
+Use this helper after fitting an MM-DML model whose second stage contains an
+interaction term, for example a treatment-by-moderator product. The function
+evaluates the implied marginal effect at user-supplied moderator values and
+draws either bootstrap or analytic intervals depending on what is available in
+the fitted object.
+}
+\examples{
+\dontrun{
+plot_marginal_effect(fit, focal = "d", interaction = "d_x1", moderator_values = c(-1, 0, 1))
+}
+}

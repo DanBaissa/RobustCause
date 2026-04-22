@@ -64,6 +64,43 @@ An object of class \code{robustcause_mm_dml}.
 Fits a robust MM double machine learning estimator. For the simple single-treatment random-fold case with built-in compiled learners, the package uses the native C++ backend. For richer use cases such as multiple treatments, second-stage controls, spatial block folds, or user-supplied nuisance learners, the package falls back to the higher-level joint residualization path in R.
 }
 \details{
+\strong{When to use this model:}
+
+Use \code{fit_mm_dml()} when you want orthogonalized treatment-effect estimation
+but do not want the final stage to be ordinary least squares. The MM second stage
+is especially useful when the residualized treatment-outcome relationship may still
+contain outliers or heavy tails.
+
+\strong{Choosing the interface:}
+
+\itemize{
+\item Use the matrix interface for simple low-level work or when you are binding to the core API from another system.
+\item Use the data-frame interface for practical applications, especially when you need multiple treatments, second-stage controls, or spatial block folds.
+}
+
+\strong{Choosing learners:}
+
+\itemize{
+\item Built-in names are convenient when you want a standard workflow.
+\item Use \code{make_custom_learner()} when you want to plug in your own nuisance model, such as a neural net, custom boosted model, or another pipeline.
+\item The custom learner hook is the preferred extension path rather than adding a new hard-coded learner name for every model family.
+}
+
+\strong{Choosing uncertainty estimates:}
+
+\itemize{
+\item \code{se_type = "analytic"} is faster and fine for quick diagnostics.
+\item \code{se_type = "bootstrap"} is the better empirical default because it propagates nuisance fitting, cross-fitting, and the final MM stage together.
+}
+
+\strong{What to inspect after fitting:}
+
+\itemize{
+\item \code{summary(fit)} for coefficients, uncertainty, fold setup, backend, and convergence
+\item \code{fit\$bootstrap_estimates} when using bootstrap inference
+\item \code{plot_marginal_effect()} when your second stage contains interactions
+}
+
 Built-in learner names currently include \code{"lasso"}, \code{"elastic_net"}, \code{"random_forest"}, \code{"hist_gradient_boosting"}, \code{"ols"}, \code{"xgboost"}, \code{"gam"}, and \code{"spatial_gam"}. Some of these rely on optional packages that are loaded only when needed.
 
 For custom nuisance models, use \code{make_custom_learner()} and provide \code{model_y} and \code{model_t} objects as either:
@@ -116,4 +153,16 @@ custom_lm <- make_custom_learner(
     predict = function(model, x_test, seed, role) stats::predict(model, newdata = x_test)
   )
 )
+
+fit_custom <- fit_mm_dml(
+  outcome = "y",
+  treatment = "d",
+  controls = paste0("x", 1:6),
+  data = toy_df,
+  learner = custom_lm,
+  folds = 3,
+  seed = 123
+)
+
+summary(fit_custom)
 }

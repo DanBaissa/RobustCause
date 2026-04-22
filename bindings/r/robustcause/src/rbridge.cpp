@@ -18,7 +18,59 @@ robust::PsiType parse_psi(const std::string& psi) {
   if (psi == "tukey_bisquare") {
     return robust::PsiType::kTukeyBisquare;
   }
+  if (psi == "hampel") {
+    return robust::PsiType::kHampel;
+  }
   throw std::invalid_argument("Unknown psi value: " + psi);
+}
+
+robust::WeightMethod parse_weight_method(const std::string& wt_method) {
+  if (wt_method == "inv.var") {
+    return robust::WeightMethod::kInvVar;
+  }
+  if (wt_method == "case") {
+    return robust::WeightMethod::kCase;
+  }
+  throw std::invalid_argument("Unknown weight method: " + wt_method);
+}
+
+robust::InitMethod parse_init_method(const std::string& init_method) {
+  if (init_method == "ls") {
+    return robust::InitMethod::kOLS;
+  }
+  if (init_method == "lts") {
+    return robust::InitMethod::kLTS;
+  }
+  if (init_method == "user") {
+    return robust::InitMethod::kUser;
+  }
+  throw std::invalid_argument("Unknown init method: " + init_method);
+}
+
+robust::ScaleEstimate parse_scale_estimate(const std::string& scale_est) {
+  if (scale_est == "MAD") {
+    return robust::ScaleEstimate::kMAD;
+  }
+  if (scale_est == "Huber") {
+    return robust::ScaleEstimate::kHuber;
+  }
+  if (scale_est == "proposal 2") {
+    return robust::ScaleEstimate::kProposal2;
+  }
+  throw std::invalid_argument("Unknown scale estimate: " + scale_est);
+}
+
+robust::TestVector parse_test_vector(const std::string& test_vec) {
+  if (test_vec == "coef") {
+    return robust::TestVector::kCoef;
+  }
+  if (test_vec == "resid") {
+    return robust::TestVector::kResid;
+  }
+  if (test_vec == "w") {
+    return robust::TestVector::kWeight;
+  }
+  throw std::invalid_argument("Unknown test vector: " + test_vec);
 }
 
 robust::HCType parse_hc(const std::string& hc_type) {
@@ -72,9 +124,17 @@ robust::RlmControl parse_rlm_control(SEXP controlSEXP) {
   ctl.tuning = Rcpp::as<double>(control["tuning"]);
   ctl.maxit = Rcpp::as<int>(control["maxit"]);
   ctl.tol = Rcpp::as<double>(control["tol"]);
+  ctl.acc = Rcpp::as<double>(control["acc"]);
   ctl.add_intercept = Rcpp::as<bool>(control["add_intercept"]);
   ctl.ridge = Rcpp::as<double>(control["ridge"]);
   ctl.min_weight = Rcpp::as<double>(control["min_weight"]);
+  ctl.prior_weights = Rcpp::as<arma::vec>(control["prior_weights"]);
+  ctl.wt_method = parse_weight_method(Rcpp::as<std::string>(control["wt_method"]));
+  ctl.init_method = parse_init_method(Rcpp::as<std::string>(control["init_method"]));
+  ctl.init_coef = Rcpp::as<arma::vec>(control["init_coef"]);
+  ctl.scale_est = parse_scale_estimate(Rcpp::as<std::string>(control["scale_est"]));
+  ctl.k2 = Rcpp::as<double>(control["k2"]);
+  ctl.test_vec = parse_test_vector(Rcpp::as<std::string>(control["test_vec"]));
   ctl.mm_s_control = parse_s_control(control["mm_s_control"]);
   return ctl;
 }
@@ -89,6 +149,7 @@ extern "C" SEXP rc_r_fit_rlm(SEXP xSEXP,
   robust::RlmControl ctl = parse_rlm_control(controlSEXP);
 
   robust::RlmResult fit = robust::fit_rlm(X, y, ctl);
+  const std::string psi_name = robust::psi_name(parse_psi(Rcpp::as<std::string>(Rcpp::List(controlSEXP)["psi"])));
 
   return Rcpp::List::create(
     Rcpp::Named("coef") = Rcpp::wrap(fit.coef),
@@ -100,7 +161,9 @@ extern "C" SEXP rc_r_fit_rlm(SEXP xSEXP,
     Rcpp::Named("converged") = fit.converged,
     Rcpp::Named("iterations") = fit.iterations,
     Rcpp::Named("method") = robust::rlm_method_name(fit.method),
-    Rcpp::Named("psi") = Rcpp::as<std::string>(Rcpp::List(controlSEXP)["psi"]),
+    Rcpp::Named("psi") = psi_name,
+    Rcpp::Named("prior_weights") = Rcpp::wrap(fit.prior_weights),
+    Rcpp::Named("wt_method") = robust::weight_method_name(fit.wt_method),
     Rcpp::Named("coef_names") = R_NilValue
   );
 }

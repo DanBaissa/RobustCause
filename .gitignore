@@ -6,6 +6,7 @@
 _bundle_inspect/
 .rlib/
 .robustcause-rmd-lib/
+.robustcause-r-tests/
 bindings/r/robustcause/.robustcause-rmd-lib/
 build/
 build-*/

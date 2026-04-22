@@ -43,3 +43,106 @@ An object of class \code{robustcause_mmm} containing the fitted coefficients,
 per-channel cleaned signals, stocks, transformed regressors, and the final
 design matrix used in the regression.
 }
+\arguments{
+  \item{y}{Numeric outcome vector for the matrix interface.}
+  \item{unit_ids}{Unit or panel identifiers for the matrix interface.}
+  \item{channels}{Numeric channel matrix, one column per media input.}
+  \item{preclean_x}{Numeric design matrix used in the first-step cleaning stage.}
+  \item{controls}{Numeric control matrix for the final MMM regression.}
+  \item{data}{Optional data frame interface.}
+  \item{outcome}{Outcome column name in \code{data}.}
+  \item{unit}{Unit or panel identifier column name in \code{data}.}
+  \item{channel_cols}{Media channel columns in \code{data}.}
+  \item{preclean_cols}{Columns used in the channel-cleaning stage.}
+  \item{control_cols}{Columns used in the final regression stage.}
+  \item{fit_method}{Final regression type: \code{"ols"}, \code{"huber"}, \code{"s"}, or \code{"mm"}.}
+  \item{rho}{Carryover parameter, scalar or one value per channel.}
+  \item{increment_method}{Adstock increment rule, scalar or one value per channel.}
+  \item{hill_lambda}{Hill saturation parameter, scalar or one value per channel.}
+  \item{preclean}{Whether to clean each channel before adstock accumulation, scalar or one value per channel.}
+  \item{preclean_method}{Either \code{"mm"} or \code{"s"}, scalar or one value per channel.}
+  \item{nonnegative}{Whether to truncate cleaned channels at zero.}
+  \item{residual_clip_multiplier}{Residual clipping multiplier used in channel precleaning.}
+  \item{clip_c}{Bounding constant for robust increment rules.}
+  \item{adaptive_upper}{Optional threshold for \code{"adaptive_clip"}.}
+  \item{apply_hill}{Whether to apply Hill saturation, scalar or one value per channel.}
+  \item{huber_c}{Huber tuning constant for the final Huber regression.}
+  \item{huber_max_iter}{Maximum Huber iterations.}
+  \item{s_starts}{Number of S-estimator starts.}
+  \item{s_max_iter}{Maximum S iterations.}
+  \item{mm_max_iter}{Maximum MM iterations.}
+  \item{mm_tukey_c}{Tukey bisquare constant for MM stages.}
+  \item{seed}{Random seed.}
+}
+\details{
+\strong{What this model does:}
+
+For each media channel, \code{fit_mmm()} can:
+
+\enumerate{
+\item robustly preclean the raw signal
+\item build a carryover stock
+\item optionally apply Hill saturation
+\item fit a final regression of the outcome on transformed media and controls
+}
+
+\strong{When to use this model:}
+
+Use \code{fit_mmm()} when you want a full media-response pipeline rather than
+just a stock series. It is the right entry point when you care about channel
+coefficients, transformed regressors, and the final design actually used in the
+MMM.
+
+\strong{Practical defaults:}
+
+\itemize{
+\item Start with \code{fit_method = "huber"} or \code{"mm"}.
+\item Use \code{preclean = TRUE} when raw channel spikes are plausible.
+\item Use \code{increment_method = "adaptive_clip"} or \code{"huber"} as robust first choices.
+\item Keep \code{apply_hill = TRUE} if you want diminishing-returns behavior.
+}
+
+\strong{What to inspect after fitting:}
+
+\itemize{
+\item \code{summary(fit)} for channel-level diagnostics and the final coefficient table
+\item \code{fit\$cleaned_signals} to see the precleaned channel series
+\item \code{fit\$stocks} for carryover stocks
+\item \code{fit\$transformed_channels} for the regressors actually entering the final regression
+\item \code{fit\$design_matrix} for the full final design
+}
+}
+\examples{
+set.seed(7)
+n <- 120
+unit_ids <- rep(1:24, each = 5)
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+channel_1 <- exp(0.5 + 0.4 * x1 + rnorm(n, sd = 0.15))
+channel_2 <- exp(0.3 + 0.3 * x2 + rnorm(n, sd = 0.15))
+y <- 1 + 0.05 * channel_1 + 0.03 * channel_2 + 0.4 * x1 - 0.2 * x2 + rnorm(n, sd = 0.4)
+
+mmm_dat <- data.frame(
+  y = y,
+  unit = unit_ids,
+  x1 = x1,
+  x2 = x2,
+  channel_1 = channel_1,
+  channel_2 = channel_2
+)
+
+fit <- fit_mmm(
+  data = mmm_dat,
+  outcome = "y",
+  unit = "unit",
+  channel_cols = c("channel_1", "channel_2"),
+  preclean_cols = c("x1", "x2"),
+  control_cols = c("x1", "x2"),
+  fit_method = "huber",
+  rho = c(0.8, 0.75),
+  increment_method = c("adaptive_clip", "huber"),
+  hill_lambda = c(0.12, 0.10)
+)
+
+summary(fit)
+}

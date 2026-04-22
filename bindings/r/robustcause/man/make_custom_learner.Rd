@@ -18,6 +18,13 @@ Each learner can be either a direct prediction function or a list with \code{fit
 and \code{predict} functions.
 }
 \details{
+\strong{When to use this helper:}
+
+Use \code{make_custom_learner()} when you want \code{fit_mm_dml()} to use your
+own nuisance model rather than one of the package's named learners. This is the
+recommended route for custom neural networks, tuned gradient boosting pipelines,
+or project-specific regression stacks.
+
 Supported specification styles:
 \enumerate{
 \item \code{function(x_train, y_train, x_test, seed, role) ...} returning predictions for \code{x_test}
@@ -26,4 +33,17 @@ Supported specification styles:
 
 This lets users plug in arbitrary model pipelines without waiting for the package
 to add a named learner wrapper.
+}
+\examples{
+custom_lm <- make_custom_learner(
+  model_y = list(
+    fit = function(x_train, y_train, seed, role) stats::lm(y_train ~ ., data = x_train),
+    predict = function(model, x_test, seed, role) stats::predict(model, newdata = x_test)
+  ),
+  model_t = list(
+    fit = function(x_train, y_train, seed, role) stats::lm(y_train ~ ., data = x_train),
+    predict = function(model, x_test, seed, role) stats::predict(model, newdata = x_test)
+  ),
+  label = "custom_lm"
+)
 }

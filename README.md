@@ -86,7 +86,22 @@ Key behavior:
 - accepts either matrix input or formula/data input
 - defaults to Huber psi for M-estimation
 - defaults to Tukey bisquare psi for MM-estimation
+- includes native support for:
+  - observation `weights`
+  - `wt.method = "case"` and `"inv.var"`
+  - built-in psi families `"huber"`, `"tukey_bisquare"`, and `"hampel"`
+  - `init = "ls"`, `init = "lts"`, and user-supplied numeric starts
+  - `scale.est = "MAD"`, `"Huber"`, and `"proposal 2"`
+  - `k2`
+  - `acc`
+  - `test.vec = "coef"`, `"resid"`, or `"w"`
 - defaults `tuning = 4.685` when `method = "mm"`
+- handles formula-layer extras in the R frontend:
+  - `subset`
+  - `na.action`
+  - `contrasts`
+  - `offset`
+- handles custom function-valued psi in the package wrapper without delegating estimation to `MASS::rlm()`
 - robust covariance is handled separately through `vcov()` and `confint()`
 
 Example:
@@ -101,6 +116,20 @@ y <- 1 + 2 * x1 - 1.5 * x2 + rnorm(n)
 fit <- fit_rlm(y ~ x1 + x2, data = data.frame(y, x1, x2), method = "mm")
 summary(fit)
 confint(fit, hc_type = "HC3")
+
+w <- runif(n, 0.8, 1.2)
+fit_hampel <- fit_rlm(
+  y ~ x1 + x2,
+  data = data.frame(y, x1, x2, w = w),
+  method = "m",
+  psi = "hampel",
+  weights = w,
+  wt.method = "case",
+  init = "lts",
+  scale.est = "Huber",
+  test.vec = "coef"
+)
+summary(fit_hampel)
 ```
 
 ### `fit_s_estimator()`
@@ -305,6 +334,12 @@ The design is matrix-first and binding-friendly:
 - column-major layout aligns naturally with Armadillo and R
 - the C ABI is intended to be stable enough for future Python and R frontends
 - higher-level ergonomics such as formulas and data frames belong mostly in the frontend layer
+
+For `fit_rlm()`, this means:
+
+- named robust-regression controls live in the native solver
+- formula parsing and model-matrix construction live in the R frontend
+- arbitrary user-defined psi callbacks are currently an R-wrapper capability rather than part of the language-agnostic C++ ABI
 
 ## Building The C++ Library
 
