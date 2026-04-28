@@ -1,0 +1,126 @@
+---
+title: "Synthetic Control in robustcause"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Synthetic Control in robustcause}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+## Overview
+
+`robustcause::fit_sc()` exposes both standard synthetic control and a robust
+MM synthetic-control estimator through a single R interface. The robust
+variant keeps donor weights on the simplex but downweights contaminated
+pre-treatment periods during fitting.
+
+The robust MM estimator helps when a few pre-treatment periods are distorted by
+measurement error, transient shocks, or heavy-tailed noise. It does not solve
+fundamental donor-pool mismatch or lack of overlap.
+
+## Matrix interface
+
+```{r}
+library(robustcause)
+
+outcomes <- cbind(
+  treated = c(1, 2, 20, 10, 11, 12),
+  d1 = c(1, 2, 2.8, 3, 3.2, 3.3),
+  d2 = c(0.9, 1.9, 3.1, 3.5, 3.9, 4.1),
+  d3 = c(1.2, 2.1, 2.9, 3.2, 3.4, 3.6)
+)
+
+fit_mm <- fit_sc(
+  outcomes = outcomes,
+  treated_unit = "treated",
+  treatment_start = 4,
+  method = "mm",
+  run_placebos = TRUE
+)
+
+summary(fit_mm)
+coef(fit_mm)
+head(as.data.frame(fit_mm))
+```
+
+The fitted object supports standard extraction helpers:
+
+```{r}
+fitted(fit_mm)
+residuals(fit_mm)
+predict(fit_mm, type = "gap", period = "post")
+```
+
+## Panel-data interface
+
+```{r}
+panel <- data.frame(
+  unit = rep(c("treated", "d1", "d2", "d3"), each = 6),
+  time = rep(1:6, times = 4),
+  outcome = c(
+    1, 2, 20, 10, 11, 12,
+    1, 2, 2.8, 3, 3.2, 3.3,
+    0.9, 1.9, 3.1, 3.5, 3.9, 4.1,
+    1.2, 2.1, 2.9, 3.2, 3.4, 3.6
+  ),
+  predictor_a = c(
+    5, 5, 5, 9, 9, 9,
+    5, 5, 5, 6, 6, 6,
+    4, 4, 4, 7, 7, 7,
+    6, 6, 6, 8, 8, 8
+  ),
+  predictor_b = c(
+    2, 2, 2, 4, 4, 4,
+    2, 2, 2, 3, 3, 3,
+    1, 1, 1, 3, 3, 3,
+    2, 2, 2, 3, 3, 3
+  )
+)
+
+fit_panel <- fit_sc(
+  data = panel,
+  unit = "unit",
+  time = "time",
+  outcome = "outcome",
+  treated_unit = "treated",
+  treatment_start = 4,
+  predictors = c("predictor_a", "predictor_b"),
+  predictor_weights = c(2, 1),
+  method = "standard",
+  run_placebos = FALSE
+)
+
+summary(fit_panel)
+```
+
+## Diagnostics and plots
+
+`fit_sc()` stores the full treated, synthetic, and gap path in a convenient
+data-frame form.
+
+```{r}
+tail(as.data.frame(fit_mm))
+```
+
+Base plotting methods are available for the gap path, donor weights, and
+placebo post-treatment gaps.
+
+```{r, fig.height=4, fig.width=6}
+plot(fit_mm)
+plot(fit_mm, type = "weights")
+plot(fit_mm, type = "placebo_gaps")
+```
+
+## Missing values
+
+The wrapper currently handles missingness through `na.action`:
+
+- `"fail"` stops when incomplete rows or periods are present
+- `"omit"` drops incomplete rows for panel data or incomplete periods for
+  matrix input before fitting
+
+The compiled solver itself still expects finite matrices after preprocessing.

@@ -1,0 +1,10 @@
+^\\.Rhistory$
+^\\.gitignore$
+^\\.robustcause-rmd-lib$
+^robustcause-smoke-test\\.html$
+^src/.*\\.(o|so|dll|a)$
+^src/.*\\.obj$
+^src/.*\\.exe$
+^src/.*\\.d$
+^src/.*\\.gcno$
+^src/.*\\.gcda$

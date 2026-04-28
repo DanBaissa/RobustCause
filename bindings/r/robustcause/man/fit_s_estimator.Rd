@@ -1,5 +1,8 @@
 \name{fit_s_estimator}
 \alias{fit_s_estimator}
+\alias{print.robustcause_s}
+\alias{summary.robustcause_s}
+\alias{print.summary.robustcause_s}
 \title{Fit a Robust S-Estimator}
 \usage{
 fit_s_estimator(

@@ -6,8 +6,9 @@ Author: Dan Baissa [aut, cph], OpenAI Codex [cre]
 Maintainer: OpenAI Codex <codex@example.com>
 Description: R bindings for the RobustCause C++ core library.
     The package currently exposes robust linear regression with HC sandwich
-    inference, Tukey bisquare S-estimation, a robust MM-DML estimator, and
-    robust adstock construction and robust MMM fitting with optional S/MM
+    inference, Tukey bisquare S-estimation, standard and robust synthetic
+    control, a robust MM-DML estimator, and robust adstock construction and
+    robust MMM fitting with optional S/MM
     precleaning through a matrix-first API, with R-native helpers built on top
     of the compiled core.
 License: MIT + file LICENSE
@@ -17,7 +18,6 @@ Depends:
     R (>= 4.1.0)
 Imports:
     graphics,
-    methods,
     Rcpp,
     stats
 LinkingTo:
@@ -26,6 +26,13 @@ LinkingTo:
     RcppEigen
 Suggests:
     knitr,
-    rmarkdown
+    MASS,
+    glmnet,
+    mgcv,
+    ranger,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    xgboost
 SystemRequirements: C++17
 VignetteBuilder: knitr
+Config/testthat/edition: 3

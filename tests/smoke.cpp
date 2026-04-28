@@ -116,6 +116,41 @@ int main() {
   require(mmm_fit.channel_coef.size() == channels_mmm.size(), "MMM channel coefficient size mismatch");
   require(mmm_fit.design_matrix.size() == y_mmm.size(), "MMM design size mismatch");
 
+  arma::mat outcomes_sc(7, 4);
+  outcomes_sc.col(0) = arma::vec{1.0, 2.1, 9.0, 4.0, 5.1, 6.0, 7.0};
+  outcomes_sc.col(1) = arma::vec{1.1, 2.0, 3.0, 4.1, 5.0, 6.1, 7.2};
+  outcomes_sc.col(2) = arma::vec{0.8, 1.9, 3.2, 3.9, 5.2, 5.9, 6.9};
+  outcomes_sc.col(3) = arma::vec{1.3, 2.2, 2.8, 4.2, 4.9, 6.0, 7.1};
+
+  robust::ScPanel sc_panel;
+  sc_panel.outcomes = outcomes_sc;
+  sc_panel.treated_index = 0;
+  sc_panel.treatment_start = 5;
+  sc_panel.predictor_treated = arma::vec{2.0, 4.0};
+  sc_panel.predictor_donors.set_size(2, 3);
+  sc_panel.predictor_donors.row(0) = arma::rowvec{2.0, 1.9, 2.1};
+  sc_panel.predictor_donors.row(1) = arma::rowvec{4.1, 3.9, 4.0};
+  sc_panel.predictor_weights = arma::vec{5.0, 5.0};
+
+  const robust::ScData sc_data = robust::prepare_sc_data(sc_panel);
+  const robust::ScResult sc_standard_fit = robust::fit_sc(sc_data);
+  require(sc_standard_fit.weights.n_elem == 3, "SC weight length mismatch");
+  require(approx(arma::accu(sc_standard_fit.weights), 1.0, 1e-8), "SC weights do not sum to one");
+
+  robust::MmscControl sc_ctl;
+  const robust::MmscResult sc_fit = robust::fit_mm_sc(sc_data, sc_ctl);
+  require(sc_fit.weights.n_elem == 3, "MM-SC weight length mismatch");
+  require(approx(arma::accu(sc_fit.weights), 1.0, 1e-8), "MM-SC weights do not sum to one");
+  require(arma::all(sc_fit.weights >= -1e-10), "MM-SC weights must be nonnegative");
+  require(sc_fit.robust_time_weights[2] < 0.5, "MM-SC did not downweight the contaminated period");
+  require(sc_fit.standard_fit.weights.n_elem == 3, "Embedded standard SC result missing");
+  require(sc_fit.mm_rmspe <= sc_fit.startup_rmspe + 1e-8, "MM-SC refinement should not worsen startup RMSPE materially");
+
+  const robust::ScPlaceboResult placebo_fit = robust::fit_mm_sc_placebos(outcomes_sc, 5, sc_ctl);
+  require(placebo_fit.unit_indices.n_elem == 4, "Placebo unit count mismatch");
+  require(placebo_fit.post_gap_matrix.n_cols == 2, "Placebo post gap width mismatch");
+  require(placebo_fit.rmspe_ratio.n_elem == 4, "Placebo RMSPE ratios missing");
+
   rc_rlm_options_t capi_ctl = rc_default_rlm_options();
   std::vector<double> coef(3);
   std::vector<double> fitted(8);

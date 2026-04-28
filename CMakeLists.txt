@@ -15,6 +15,7 @@ set(ROBUSTCAUSE_SOURCES
   src/robust_adstock.cpp
   src/robust_mmm.cpp
   src/robust_rlm_hc.cpp
+  src/robust_sc.cpp
   src/robust_s_estimator.cpp
 )
 
@@ -51,6 +52,9 @@ if(ROBUSTCAUSE_BUILD_EXAMPLES)
 
   add_executable(example_mmm examples/example_mmm.cpp)
   target_link_libraries(example_mmm PRIVATE RobustCause::robustcause)
+
+  add_executable(example_sc examples/example_sc.cpp)
+  target_link_libraries(example_sc PRIVATE RobustCause::robustcause)
 
   if(ROBUSTCAUSE_BUILD_CAPI)
     add_executable(example_capi examples/example_capi.cpp)

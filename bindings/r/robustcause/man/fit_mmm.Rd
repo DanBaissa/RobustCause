@@ -1,5 +1,8 @@
 \name{fit_mmm}
 \alias{fit_mmm}
+\alias{print.robustcause_mmm}
+\alias{summary.robustcause_mmm}
+\alias{print.summary.robustcause_mmm}
 \title{Fit a Robust Marketing Mix Model}
 \usage{
 fit_mmm(

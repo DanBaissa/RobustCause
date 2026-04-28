@@ -1,5 +1,10 @@
 \name{fit_rlm}
 \alias{fit_rlm}
+\alias{print.robustcause_rlm}
+\alias{summary.robustcause_rlm}
+\alias{print.summary.robustcause_rlm}
+\alias{vcov.robustcause_rlm}
+\alias{confint.robustcause_rlm}
 \title{Fit a Robust Linear Model}
 \usage{
 fit_rlm(

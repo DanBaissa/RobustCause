@@ -1,10 +1,12 @@
 #include <RcppArmadillo.h>
+#include <Rinternals.h>
 
 #include <cstdint>
 #include <stdexcept>
 #include <string>
 
 #include "robust/robust_rlm_hc.hpp"
+#include "robust/robust_sc.hpp"
 #include "robust/robust_s_estimator.hpp"
 
 // [[Rcpp::depends(RcppArmadillo)]]
@@ -139,6 +141,94 @@ robust::RlmControl parse_rlm_control(SEXP controlSEXP) {
   return ctl;
 }
 
+robust::ScControl make_sc_control(SEXP maxitSEXP,
+                                  SEXP tolSEXP,
+                                  SEXP ridgeSEXP) {
+  robust::ScControl ctl;
+  ctl.maxit = Rcpp::as<int>(maxitSEXP);
+  ctl.tol = Rcpp::as<double>(tolSEXP);
+  ctl.ridge = Rcpp::as<double>(ridgeSEXP);
+  return ctl;
+}
+
+robust::MmscControl make_mmsc_control(SEXP startupMaxitSEXP,
+                                      SEXP maxitSEXP,
+                                      SEXP subproblemMaxitSEXP,
+                                      SEXP tolSEXP,
+                                      SEXP subproblemTolSEXP,
+                                      SEXP l1SmoothingSEXP,
+                                      SEXP tukeyCSEXP,
+                                      SEXP minScaleSEXP,
+                                      SEXP ridgeSEXP,
+                                      SEXP minTimeWeightSEXP) {
+  robust::MmscControl ctl;
+  ctl.startup_maxit = Rcpp::as<int>(startupMaxitSEXP);
+  ctl.maxit = Rcpp::as<int>(maxitSEXP);
+  ctl.subproblem_maxit = Rcpp::as<int>(subproblemMaxitSEXP);
+  ctl.tol = Rcpp::as<double>(tolSEXP);
+  ctl.subproblem_tol = Rcpp::as<double>(subproblemTolSEXP);
+  ctl.l1_smoothing = Rcpp::as<double>(l1SmoothingSEXP);
+  ctl.tukey_c = Rcpp::as<double>(tukeyCSEXP);
+  ctl.min_scale = Rcpp::as<double>(minScaleSEXP);
+  ctl.ridge = Rcpp::as<double>(ridgeSEXP);
+  ctl.min_time_weight = Rcpp::as<double>(minTimeWeightSEXP);
+  return ctl;
+}
+
+Rcpp::List wrap_sc_result(const robust::ScResult& fit) {
+  return Rcpp::List::create(
+    Rcpp::Named("weights") = Rcpp::wrap(fit.weights),
+    Rcpp::Named("synthetic_pre") = Rcpp::wrap(fit.synthetic_pre),
+    Rcpp::Named("synthetic_post") = Rcpp::wrap(fit.synthetic_post),
+    Rcpp::Named("pre_residuals") = Rcpp::wrap(fit.pre_residuals),
+    Rcpp::Named("post_gaps") = Rcpp::wrap(fit.post_gaps),
+    Rcpp::Named("objective_value") = fit.objective_value,
+    Rcpp::Named("pre_rmspe") = fit.pre_rmspe,
+    Rcpp::Named("weight_herfindahl") = fit.weight_herfindahl,
+    Rcpp::Named("max_weight") = fit.max_weight,
+    Rcpp::Named("effective_donors") = fit.effective_donors,
+    Rcpp::Named("converged") = fit.converged,
+    Rcpp::Named("iterations") = fit.iterations
+  );
+}
+
+Rcpp::List wrap_mmsc_result(const robust::MmscResult& fit) {
+  Rcpp::List out;
+  out["weights"] = Rcpp::wrap(fit.weights);
+  out["startup_weights"] = Rcpp::wrap(fit.startup_weights);
+  out["synthetic_pre"] = Rcpp::wrap(fit.synthetic_pre);
+  out["synthetic_post"] = Rcpp::wrap(fit.synthetic_post);
+  out["pre_residuals"] = Rcpp::wrap(fit.pre_residuals);
+  out["post_gaps"] = Rcpp::wrap(fit.post_gaps);
+  out["robust_time_weights"] = Rcpp::wrap(fit.robust_time_weights);
+  out["downweighted_periods"] = Rcpp::wrap(fit.downweighted_periods);
+  out["scale"] = fit.scale;
+  out["objective_value"] = fit.objective_value;
+  out["startup_objective"] = fit.startup_objective;
+  out["standard_rmspe"] = fit.standard_rmspe;
+  out["startup_rmspe"] = fit.startup_rmspe;
+  out["mm_rmspe"] = fit.mm_rmspe;
+  out["effective_periods"] = fit.effective_periods;
+  out["weight_herfindahl"] = fit.weight_herfindahl;
+  out["max_weight"] = fit.max_weight;
+  out["effective_donors"] = fit.effective_donors;
+  out["converged"] = fit.converged;
+  out["iterations"] = fit.iterations;
+  out["standard_fit"] = wrap_sc_result(fit.standard_fit);
+  return out;
+}
+
+Rcpp::List wrap_placebo_result(const robust::ScPlaceboResult& fit) {
+  return Rcpp::List::create(
+    Rcpp::Named("unit_indices") = Rcpp::wrap(fit.unit_indices),
+    Rcpp::Named("weight_matrix") = Rcpp::wrap(fit.weight_matrix),
+    Rcpp::Named("post_gap_matrix") = Rcpp::wrap(fit.post_gap_matrix),
+    Rcpp::Named("pre_rmspe") = Rcpp::wrap(fit.pre_rmspe),
+    Rcpp::Named("post_rmspe") = Rcpp::wrap(fit.post_rmspe),
+    Rcpp::Named("rmspe_ratio") = Rcpp::wrap(fit.rmspe_ratio)
+  );
+}
+
 }  // namespace
 
 extern "C" SEXP rc_r_fit_rlm(SEXP xSEXP,
@@ -256,4 +346,111 @@ extern "C" SEXP rc_r_fit_s_estimator(SEXP xSEXP,
     Rcpp::Named("message") = fit.message,
     Rcpp::Named("coef_names") = R_NilValue
   );
+}
+
+extern "C" SEXP rc_r_fit_sc(SEXP treatedPreSEXP,
+                            SEXP donorsPreSEXP,
+                            SEXP treatedPostSEXP,
+                            SEXP donorsPostSEXP,
+                            SEXP maxitSEXP,
+                            SEXP tolSEXP,
+                            SEXP ridgeSEXP,
+                            SEXP predictorTreatedSEXP,
+                            SEXP predictorDonorsSEXP,
+                            SEXP predictorWeightsSEXP) {
+  try {
+    arma::vec treated_pre = Rcpp::as<arma::vec>(treatedPreSEXP);
+    arma::mat donors_pre = Rcpp::as<arma::mat>(donorsPreSEXP);
+    arma::vec treated_post = Rcpp::as<arma::vec>(treatedPostSEXP);
+    arma::mat donors_post = Rcpp::as<arma::mat>(donorsPostSEXP);
+    arma::vec predictor_treated = Rcpp::as<arma::vec>(predictorTreatedSEXP);
+    arma::mat predictor_donors = Rcpp::as<arma::mat>(predictorDonorsSEXP);
+    arma::vec predictor_weights = Rcpp::as<arma::vec>(predictorWeightsSEXP);
+    robust::ScControl ctl = make_sc_control(maxitSEXP, tolSEXP, ridgeSEXP);
+    return wrap_sc_result(robust::fit_sc(
+      treated_pre, donors_pre, treated_post, donors_post, ctl,
+      predictor_treated, predictor_donors, predictor_weights));
+  } catch (const std::exception& e) {
+    Rcpp::stop("rc_r_fit_sc failed: %s", e.what());
+  } catch (...) {
+    Rcpp::stop("rc_r_fit_sc failed with an unknown C++ exception");
+  }
+}
+
+extern "C" SEXP rc_r_fit_mm_sc(SEXP treatedPreSEXP,
+                               SEXP donorsPreSEXP,
+                               SEXP treatedPostSEXP,
+                               SEXP donorsPostSEXP,
+                               SEXP startupMaxitSEXP,
+                               SEXP maxitSEXP,
+                               SEXP subproblemMaxitSEXP,
+                               SEXP tolSEXP,
+                               SEXP subproblemTolSEXP,
+                               SEXP l1SmoothingSEXP,
+                               SEXP tukeyCSEXP,
+                               SEXP minScaleSEXP,
+                               SEXP ridgeSEXP,
+                               SEXP minTimeWeightSEXP,
+                               SEXP predictorTreatedSEXP,
+                               SEXP predictorDonorsSEXP,
+                               SEXP predictorWeightsSEXP) {
+  try {
+    arma::vec treated_pre = Rcpp::as<arma::vec>(treatedPreSEXP);
+    arma::mat donors_pre = Rcpp::as<arma::mat>(donorsPreSEXP);
+    arma::vec treated_post = Rcpp::as<arma::vec>(treatedPostSEXP);
+    arma::mat donors_post = Rcpp::as<arma::mat>(donorsPostSEXP);
+    arma::vec predictor_treated = Rcpp::as<arma::vec>(predictorTreatedSEXP);
+    arma::mat predictor_donors = Rcpp::as<arma::mat>(predictorDonorsSEXP);
+    arma::vec predictor_weights = Rcpp::as<arma::vec>(predictorWeightsSEXP);
+    robust::MmscControl ctl = make_mmsc_control(
+      startupMaxitSEXP,
+      maxitSEXP,
+      subproblemMaxitSEXP,
+      tolSEXP,
+      subproblemTolSEXP,
+      l1SmoothingSEXP,
+      tukeyCSEXP,
+      minScaleSEXP,
+      ridgeSEXP,
+      minTimeWeightSEXP);
+    return wrap_mmsc_result(robust::fit_mm_sc(
+      treated_pre, donors_pre, treated_post, donors_post, ctl,
+      predictor_treated, predictor_donors, predictor_weights));
+  } catch (const std::exception& e) {
+    Rcpp::stop("rc_r_fit_mm_sc failed: %s", e.what());
+  } catch (...) {
+    Rcpp::stop("rc_r_fit_mm_sc failed with an unknown C++ exception");
+  }
+}
+
+extern "C" SEXP rc_r_fit_sc_placebos(SEXP outcomesSEXP,
+                                     SEXP treatmentStartSEXP,
+                                     SEXP maxitSEXP,
+                                     SEXP tolSEXP,
+                                     SEXP ridgeSEXP,
+                                     SEXP startupMaxitSEXP,
+                                     SEXP subproblemMaxitSEXP,
+                                     SEXP subproblemTolSEXP,
+                                     SEXP l1SmoothingSEXP,
+                                     SEXP tukeyCSEXP,
+                                     SEXP minScaleSEXP,
+                                     SEXP minTimeWeightSEXP,
+                                     SEXP useMmSEXP) {
+  try {
+    arma::mat outcomes = Rcpp::as<arma::mat>(outcomesSEXP);
+    const int treatment_start = Rcpp::as<int>(treatmentStartSEXP);
+    const bool use_mm = Rcpp::as<bool>(useMmSEXP);
+    if (use_mm) {
+      robust::MmscControl ctl = make_mmsc_control(
+        startupMaxitSEXP, maxitSEXP, subproblemMaxitSEXP, tolSEXP, subproblemTolSEXP,
+        l1SmoothingSEXP, tukeyCSEXP, minScaleSEXP, ridgeSEXP, minTimeWeightSEXP);
+      return wrap_placebo_result(robust::fit_mm_sc_placebos(outcomes, treatment_start, ctl));
+    }
+    robust::ScControl ctl = make_sc_control(maxitSEXP, tolSEXP, ridgeSEXP);
+    return wrap_placebo_result(robust::fit_sc_placebos(outcomes, treatment_start, ctl));
+  } catch (const std::exception& e) {
+    Rcpp::stop("rc_r_fit_sc_placebos failed: %s", e.what());
+  } catch (...) {
+    Rcpp::stop("rc_r_fit_sc_placebos failed with an unknown C++ exception");
+  }
 }

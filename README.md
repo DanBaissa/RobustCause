@@ -24,6 +24,8 @@ The project combines high-breakdown robust estimation, practical model-fitting w
   - [`fit_adstock_model()`](#fit_adstock_model)
 - [Robust MMM](#robust-mmm)
   - [`fit_mmm()`](#fit_mmm)
+- [Robust Synthetic Control](#robust-synthetic-control)
+  - [`fit_mm_sc()`](#fit_mm_sc)
 - [C++ Core](#c-core)
 - [Repository Layout](#repository-layout)
 - [Notebook Showcase](#notebook-showcase)
@@ -31,7 +33,7 @@ The project combines high-breakdown robust estimation, practical model-fitting w
 
 ## Introduction
 
-RobustCause is designed for users who want a shared robust estimation stack rather than a collection of disconnected functions. The library centers on a common C++ backend that supports robust linear regression, robust double machine learning, robust adstock construction, and robust marketing-mix modeling.
+RobustCause is designed for users who want a shared robust estimation stack rather than a collection of disconnected functions. The library centers on a common C++ backend that supports robust linear regression, robust double machine learning, robust synthetic control, robust adstock construction, and robust marketing-mix modeling.
 
 At the user level, the project currently exposes its most complete interface through the R package. That package provides a consistent API for fitting robust linear models, standalone S-estimators, robust partially linear double machine learning models, robust adstock transformations, end-to-end adstock response models, and multi-channel marketing-mix models.
 
@@ -43,6 +45,7 @@ RobustCause currently includes:
 
 - an installable C++ core library with CMake packaging
 - shared C++ modules for robust regression, S-estimation, adstock, and MMM
+- a native C++ MM-style robust synthetic-control backend
 - an R package wrapper with compiled native code
 - native C++ MM-DML nuisance learners with tunable lasso and random-forest backends
 - robust inference helpers for both RobustCause fits and base R `lm` objects
@@ -109,6 +112,7 @@ confint(fit, hc_type = "HC3")
 From there, you can move to:
 
 - `fit_mm_dml()` for robust partially linear double machine learning
+- `fit_mm_sc()` in the C++ core for robust synthetic control
 - `build_adstock()` for robust carryover stock construction
 - `fit_adstock_model()` for end-to-end adstock response modeling
 - `fit_mmm()` for multi-channel marketing-mix models
@@ -122,6 +126,7 @@ That package exposes a consistent family of fit objects with `print()` and `summ
 - `fit_rlm()` for robust linear models
 - `fit_s_estimator()` for standalone S-estimation
 - `fit_mm_dml()` for robust double machine learning
+- `fit_mm_sc()` for robust synthetic control in the native backend
 - `build_adstock()` for robust carryover stock construction
 - `fit_adstock_model()` for end-to-end single-signal adstock response modeling
 - `fit_mmm()` for multi-channel marketing-mix models
@@ -485,6 +490,58 @@ mmm_fit <- fit_mmm(
 )
 
 summary(mmm_fit)
+```
+
+## Robust Synthetic Control
+
+### `fit_mm_sc()`
+
+The synthetic-control backend now includes:
+
+- `prepare_sc_data()` for panel-to-matrix preparation
+- `fit_sc()` for standard simplex-constrained synthetic control
+- `fit_mm_sc()` for MM-style robust synthetic control
+- `fit_sc_placebos()` and `fit_mm_sc_placebos()` for donor placebo runs
+
+`fit_mm_sc()` fits an MM-style robust synthetic-control estimator in the native C++ backend.
+
+The donor weights remain on the simplex:
+
+- nonnegative donor weights
+- donor weights sum to one
+
+The pre-treatment fit is made robust through:
+
+1. a simplex-constrained L1-style startup fit
+2. a MAD residual scale estimate
+3. Tukey-bisquare M-refinement via iteratively reweighted simplex-constrained least squares
+
+This is intended to downweight contaminated pre-treatment periods such as transient shocks or measurement spikes. It does not solve donor-pool mismatch or lack of overlap.
+
+The result includes:
+
+- donor weights and startup weights
+- synthetic pre- and post-treatment paths
+- pre-treatment residuals and post-treatment gaps
+- robust time weights and downweighted periods
+- embedded standard-SC comparison output
+- scale, objective, convergence, and weight-concentration diagnostics
+
+Example:
+
+```cpp
+arma::mat outcomes(7, 4);
+// columns are units, rows are time periods
+
+robust::ScPanel panel;
+panel.outcomes = outcomes;
+panel.treated_index = 0;
+panel.treatment_start = 5;
+
+robust::ScData data = robust::prepare_sc_data(panel);
+robust::ScResult sc_fit = robust::fit_sc(data);
+robust::MmscResult mm_fit = robust::fit_mm_sc(data);
+robust::ScPlaceboResult placebo = robust::fit_mm_sc_placebos(outcomes, 5);
 ```
 
 ## C++ Core

@@ -2,6 +2,7 @@
 \alias{fit_mm_dml}
 \alias{print.robustcause_mm_dml}
 \alias{summary.robustcause_mm_dml}
+\alias{print.summary.robustcause_mm_dml}
 \title{Fit MM Double Machine Learning}
 \usage{
 fit_mm_dml(

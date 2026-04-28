@@ -14,6 +14,11 @@ Implemented today in `include/robust/` and `src/`.
 - `vcov_hc(...)`
 - `confint_normal(...)`
 - `fit_s_estimator(...)`
+- `prepare_sc_data(...)`
+- `fit_sc(...)`
+- `fit_mm_sc(...)`
+- `fit_sc_placebos(...)`
+- `fit_mm_sc_placebos(...)`
 - `build_model_frame(...)`
 
 This layer is the richest API and is the best place to evolve new algorithms first.

@@ -1,5 +1,8 @@
 \name{fit_adstock_model}
 \alias{fit_adstock_model}
+\alias{print.robustcause_adstock_model}
+\alias{summary.robustcause_adstock_model}
+\alias{print.summary.robustcause_adstock_model}
 \title{Fit an End-to-End Adstock Response Model}
 \usage{
 fit_adstock_model(

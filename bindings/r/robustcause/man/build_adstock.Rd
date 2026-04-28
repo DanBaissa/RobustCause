@@ -1,5 +1,8 @@
 \name{build_adstock}
 \alias{build_adstock}
+\alias{print.robustcause_adstock}
+\alias{summary.robustcause_adstock}
+\alias{print.summary.robustcause_adstock}
 \title{Build Robust Adstock Series}
 \usage{
 build_adstock(
