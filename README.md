@@ -1,5 +1,7 @@
 # RobustCause
 
+> Status: experimental / research software.
+
 RobustCause is a C++-backed library for robust regression, robust causal inference, and robust marketing-mix modeling. It is built around a shared numerical core intended to support multiple frontends, with an R package available now and Python bindings planned next.
 
 The project combines high-breakdown robust estimation, practical model-fitting workflows, and a reusable backend that can serve both causal inference and media-response applications. Today, the most complete public API is the R package under `bindings/r/robustcause`.
