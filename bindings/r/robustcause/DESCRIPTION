@@ -2,8 +2,10 @@ Package: robustcause
 Type: Package
 Title: Robust Causal Inference Core Bindings
 Version: 0.1.0
-Author: Dan Baissa [aut, cph], OpenAI Codex [cre]
-Maintainer: OpenAI Codex <codex@example.com>
+Authors@R: c(
+    person("Daniel", "Baissa", role = c("aut", "cre", "cph"),
+           email = "dbaissa@g.harvard.edu")
+    )
 Description: R bindings for the RobustCause C++ core library.
     The package currently exposes robust linear regression with HC sandwich
     inference, Tukey bisquare S-estimation, a robust MM-DML estimator, and
