@@ -20,17 +20,14 @@ fit_sc <- function(outcomes = NULL,
     na.action = na.action
   )
 
-  fit <- if (identical(method, "mm")) {
-    sc_fit_mm_core(
-      prepared = prepared,
-      maxit = maxit,
-      mm_max_iter = mm_max_iter,
-      tukey_c = tukey_c,
-      min_time_weight = min_time_weight
-    )
-  } else {
-    sc_fit_standard_core(prepared = prepared, maxit = maxit)
-  }
+  fit <- sc_fit_one_from_prepared(
+    prepared = prepared,
+    method = method,
+    maxit = maxit,
+    mm_max_iter = mm_max_iter,
+    tukey_c = tukey_c,
+    min_time_weight = min_time_weight
+  )
 
   fit$method <- method
   fit$treated_unit <- prepared$treated_unit
@@ -51,7 +48,23 @@ fit_sc <- function(outcomes = NULL,
   )
 
   if (isTRUE(run_placebos)) {
-    warning("Placebo runs are not implemented in the R-native fallback yet.", call. = FALSE)
+    fit$placebo <- sc_run_placebos(
+      prepared = prepared,
+      method = method,
+      maxit = maxit,
+      mm_max_iter = mm_max_iter,
+      tukey_c = tukey_c,
+      min_time_weight = min_time_weight
+    )
+    fit$inference <- list(
+      placebo_p_value_rmspe_ratio = fit$placebo$placebo_p_value_rmspe_ratio,
+      placebo_p_value_avg_gap = fit$placebo$placebo_p_value_avg_gap,
+      treated_rmspe_ratio = fit$placebo$treated_rmspe_ratio,
+      treated_avg_abs_post_gap = fit$placebo$treated_avg_abs_post_gap
+    )
+  } else {
+    fit$placebo <- NULL
+    fit$inference <- NULL
   }
 
   class(fit) <- "robustcause_sc"
@@ -71,7 +84,8 @@ summary.robustcause_sc <- function(object, ...) {
     max_weight = object$max_weight,
     converged = object$converged,
     iterations = object$iterations,
-    weights = object$weights
+    weights = object$weights,
+    inference = object$inference
   )
   if (!is.null(object$robust_time_weights)) {
     out$mean_robust_time_weight <- mean(object$robust_time_weights)
@@ -90,6 +104,11 @@ print.summary.robustcause_sc <- function(x, digits = max(3L, getOption("digits")
   cat(sprintf("Max donor weight: %s\n", format(signif(x$max_weight, digits))))
   cat("\nWeights:\n")
   print(round(x$weights, digits))
+  if (!is.null(x$inference)) {
+    cat("\nPlacebo diagnostics:\n")
+    cat(sprintf("  RMSPE ratio p-value: %s\n", format(signif(x$inference$placebo_p_value_rmspe_ratio, digits))))
+    cat(sprintf("  Avg |gap| p-value: %s\n", format(signif(x$inference$placebo_p_value_avg_gap, digits))))
+  }
   invisible(x)
 }
 
