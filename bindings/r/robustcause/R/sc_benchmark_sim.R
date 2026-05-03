@@ -70,7 +70,7 @@ simulate_sc_panel <- function(n_donors = 20L,
   outcomes_clean <- outcomes
 
   predictors <- simulate_sc_predictors(
-    outcomes_clean = outcomes_clean,
+    outcomes_pre_clean = outcomes_clean[seq_len(n_pre), , drop = FALSE],
     true_weights = true_weights,
     n_predictors = n_predictors,
     predictor_noise_sd = predictor_noise_sd
@@ -127,22 +127,22 @@ simulate_sc_panel <- function(n_donors = 20L,
   ), class = "robustcause_sc_simulation")
 }
 
-simulate_sc_predictors <- function(outcomes_clean,
+simulate_sc_predictors <- function(outcomes_pre_clean,
                                    true_weights,
                                    n_predictors,
                                    predictor_noise_sd) {
   if (n_predictors <= 0L) return(NULL)
 
-  unit_names <- colnames(outcomes_clean)
-  n_units <- ncol(outcomes_clean)
-  n_pre <- nrow(outcomes_clean)
+  unit_names <- colnames(outcomes_pre_clean)
+  n_units <- ncol(outcomes_pre_clean)
+  n_pre <- nrow(outcomes_pre_clean)
   donor_weights <- as.numeric(true_weights)
 
   base_summaries <- rbind(
-    pre_mean = colMeans(outcomes_clean),
-    pre_sd = apply(outcomes_clean, 2L, stats::sd),
-    pre_first_half = colMeans(outcomes_clean[seq_len(max(1L, floor(n_pre / 2L))), , drop = FALSE]),
-    pre_second_half = colMeans(outcomes_clean[seq.int(max(1L, floor(n_pre / 2L)), n_pre), , drop = FALSE])
+    pre_mean = colMeans(outcomes_pre_clean),
+    pre_sd = apply(outcomes_pre_clean, 2L, stats::sd),
+    pre_first_half = colMeans(outcomes_pre_clean[seq_len(max(1L, floor(n_pre / 2L))), , drop = FALSE]),
+    pre_second_half = colMeans(outcomes_pre_clean[seq.int(max(1L, floor(n_pre / 2L)), n_pre), , drop = FALSE])
   )
 
   predictors <- matrix(NA_real_, nrow = n_predictors, ncol = n_units)
