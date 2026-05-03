@@ -1,23 +1,3 @@
-sc_fit_one_from_prepared <- function(prepared,
-                                    method = c("standard", "mm"),
-                                    maxit = 1000L,
-                                    mm_max_iter = 25L,
-                                    tukey_c = 4.685,
-                                    min_time_weight = 1e-8) {
-  method <- match.arg(method)
-  if (identical(method, "mm")) {
-    sc_fit_mm_core(
-      prepared = prepared,
-      maxit = maxit,
-      mm_max_iter = mm_max_iter,
-      tukey_c = tukey_c,
-      min_time_weight = min_time_weight
-    )
-  } else {
-    sc_fit_standard_core(prepared = prepared, maxit = maxit)
-  }
-}
-
 sc_run_placebos <- function(prepared,
                             method = c("standard", "mm"),
                             maxit = 1000L,
@@ -36,11 +16,16 @@ sc_run_placebos <- function(prepared,
 
   for (j in seq_len(n_units)) {
     donor_cols <- setdiff(seq_len(n_units), j)
+    placebo_predictors <- if (length(prepared$predictor_names) == 0L) NULL else prepared$predictors
     placebo_prepared <- sc_prepare_matrix(
       outcomes = outcomes,
       treated_unit = j,
       treatment_start = prepared$treatment_start,
       donors = donor_cols,
+      predictors = placebo_predictors,
+      predictor_weights = prepared$predictor_weights,
+      predictor_lambda = prepared$predictor_lambda,
+      predictor_scale = "none",
       na.action = "fail"
     )
     fit <- sc_fit_one_from_prepared(
@@ -61,6 +46,7 @@ sc_run_placebos <- function(prepared,
       post_rmspe = post_rmspe,
       rmspe_ratio = post_rmspe / pre_rmspe,
       avg_abs_post_gap = mean(abs(fit$post_gaps)),
+      predictor_rmse = fit$predictor_rmse,
       stringsAsFactors = FALSE
     )
   }
