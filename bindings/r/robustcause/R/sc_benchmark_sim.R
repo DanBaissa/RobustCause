@@ -7,11 +7,15 @@ simulate_sc_panel <- function(n_donors = 20L,
                               noise_sd = 1,
                               treatment_effect = 1,
                               effect_shape = c("constant", "ramp", "delayed", "temporary", "none"),
-                              contamination = c("none", "treated_pre_spike", "donor_pre_spike", "treated_and_donor_pre_spike", "heavy_tails", "donor_pool_mismatch"),
+                              contamination = c("none", "treated_pre_spike", "donor_pre_spike", "treated_and_donor_pre_spike", "heavy_tails", "donor_pool_mismatch", "predictor_spike", "mixed_outcome_predictor"),
                               contamination_rate = 0.05,
                               contamination_magnitude = 8,
                               donor_mismatch_strength = 0,
                               heavy_tail_df = 3,
+                              n_predictors = 0L,
+                              predictor_noise_sd = 0.25,
+                              predictor_contamination_rate = contamination_rate,
+                              predictor_contamination_magnitude = contamination_magnitude,
                               seed = NULL) {
   effect_shape <- match.arg(effect_shape)
   contamination <- match.arg(contamination)
@@ -21,9 +25,11 @@ simulate_sc_panel <- function(n_donors = 20L,
   n_pre <- as.integer(n_pre)
   n_post <- as.integer(n_post)
   n_factors <- as.integer(n_factors)
+  n_predictors <- as.integer(n_predictors)
   true_sparsity <- as.integer(min(true_sparsity, n_donors))
   if (n_donors < 2L) stop("`n_donors` must be at least 2.", call. = FALSE)
   if (n_pre < 2L || n_post < 1L) stop("Need at least two pre-periods and one post-period.", call. = FALSE)
+  if (n_predictors < 0L) stop("`n_predictors` must be nonnegative.", call. = FALSE)
 
   n_time <- n_pre + n_post
   factors <- matrix(0, n_time, n_factors)
@@ -63,6 +69,14 @@ simulate_sc_panel <- function(n_donors = 20L,
   outcomes <- cbind(treated = counterfactual + treatment_path, donors)
   outcomes_clean <- outcomes
 
+  predictors <- simulate_sc_predictors(
+    outcomes_pre_clean = outcomes_clean[seq_len(n_pre), , drop = FALSE],
+    true_weights = true_weights,
+    n_predictors = n_predictors,
+    predictor_noise_sd = predictor_noise_sd
+  )
+  predictors_clean <- predictors
+
   add_spikes <- function(rows, cols) {
     cells <- expand.grid(row = rows, col = cols, KEEP.OUT.ATTRS = FALSE)
     n_pick <- min(nrow(cells), max(1L, floor(contamination_rate * nrow(cells))))
@@ -73,11 +87,30 @@ simulate_sc_panel <- function(n_donors = 20L,
     picked
   }
 
+  add_predictor_spikes <- function() {
+    if (is.null(predictors) || nrow(predictors) == 0L) {
+      return(data.frame(row = integer(), col = integer(), shock = numeric()))
+    }
+    cells <- expand.grid(row = seq_len(nrow(predictors)), col = seq_len(ncol(predictors)), KEEP.OUT.ATTRS = FALSE)
+    n_pick <- min(nrow(cells), max(1L, floor(predictor_contamination_rate * nrow(cells))))
+    picked <- cells[sample(seq_len(nrow(cells)), n_pick), , drop = FALSE]
+    shock <- sample(c(-1, 1), n_pick, replace = TRUE) * predictor_contamination_magnitude
+    for (ii in seq_len(n_pick)) predictors[picked$row[ii], picked$col[ii]] <<- predictors[picked$row[ii], picked$col[ii]] + shock[ii]
+    picked$shock <- shock
+    picked
+  }
+
   contamination_info <- data.frame(row = integer(), col = integer(), shock = numeric())
+  predictor_contamination_info <- data.frame(row = integer(), col = integer(), shock = numeric())
   if (identical(contamination, "treated_pre_spike")) contamination_info <- add_spikes(seq_len(n_pre), 1L)
   if (identical(contamination, "donor_pre_spike")) contamination_info <- add_spikes(seq_len(n_pre), seq.int(2L, n_donors + 1L))
   if (identical(contamination, "treated_and_donor_pre_spike")) contamination_info <- add_spikes(seq_len(n_pre), seq_len(n_donors + 1L))
   if (identical(contamination, "heavy_tails")) outcomes <- outcomes + matrix(stats::rt(n_time * (n_donors + 1L), df = heavy_tail_df), n_time, n_donors + 1L)
+  if (identical(contamination, "predictor_spike")) predictor_contamination_info <- add_predictor_spikes()
+  if (identical(contamination, "mixed_outcome_predictor")) {
+    contamination_info <- add_spikes(seq_len(n_pre), seq_len(n_donors + 1L))
+    predictor_contamination_info <- add_predictor_spikes()
+  }
 
   panel <- data.frame(unit = rep(colnames(outcomes), each = n_time), time = rep(seq_len(n_time), times = ncol(outcomes)), outcome = as.numeric(outcomes))
 
@@ -85,8 +118,45 @@ simulate_sc_panel <- function(n_donors = 20L,
     panel = panel,
     outcomes = outcomes,
     outcomes_clean = outcomes_clean,
+    predictors = predictors,
+    predictors_clean = predictors_clean,
     contamination_info = contamination_info,
+    predictor_contamination_info = predictor_contamination_info,
     truth = list(true_weights = true_weights, treatment_path = treatment_path, treatment_effect_post = post_effect, treatment_start = n_pre + 1L),
-    design = list(n_donors = n_donors, n_pre = n_pre, n_post = n_post, n_factors = n_factors, true_sparsity = true_sparsity, noise_sd = noise_sd, treatment_effect = treatment_effect, effect_shape = effect_shape, contamination = contamination, contamination_rate = contamination_rate, contamination_magnitude = contamination_magnitude, donor_mismatch_strength = donor_mismatch_strength)
+    design = list(n_donors = n_donors, n_pre = n_pre, n_post = n_post, n_factors = n_factors, true_sparsity = true_sparsity, noise_sd = noise_sd, treatment_effect = treatment_effect, effect_shape = effect_shape, contamination = contamination, contamination_rate = contamination_rate, contamination_magnitude = contamination_magnitude, donor_mismatch_strength = donor_mismatch_strength, n_predictors = n_predictors, predictor_noise_sd = predictor_noise_sd, predictor_contamination_rate = predictor_contamination_rate, predictor_contamination_magnitude = predictor_contamination_magnitude)
   ), class = "robustcause_sc_simulation")
+}
+
+simulate_sc_predictors <- function(outcomes_pre_clean,
+                                   true_weights,
+                                   n_predictors,
+                                   predictor_noise_sd) {
+  if (n_predictors <= 0L) return(NULL)
+
+  unit_names <- colnames(outcomes_pre_clean)
+  n_units <- ncol(outcomes_pre_clean)
+  n_pre <- nrow(outcomes_pre_clean)
+  donor_weights <- as.numeric(true_weights)
+
+  base_summaries <- rbind(
+    pre_mean = colMeans(outcomes_pre_clean),
+    pre_sd = apply(outcomes_pre_clean, 2L, stats::sd),
+    pre_first_half = colMeans(outcomes_pre_clean[seq_len(max(1L, floor(n_pre / 2L))), , drop = FALSE]),
+    pre_second_half = colMeans(outcomes_pre_clean[seq.int(max(1L, floor(n_pre / 2L)), n_pre), , drop = FALSE])
+  )
+
+  predictors <- matrix(NA_real_, nrow = n_predictors, ncol = n_units)
+  for (k in seq_len(n_predictors)) {
+    coeff <- stats::rnorm(nrow(base_summaries))
+    predictors[k, ] <- as.numeric(crossprod(coeff, base_summaries)) + stats::rnorm(n_units, sd = predictor_noise_sd)
+  }
+
+  if (n_units > 1L) {
+    treated_signal <- as.numeric(predictors[, -1L, drop = FALSE] %*% donor_weights)
+    predictors[, 1L] <- treated_signal + stats::rnorm(n_predictors, sd = predictor_noise_sd)
+  }
+
+  rownames(predictors) <- paste0("x", seq_len(n_predictors))
+  colnames(predictors) <- unit_names
+  predictors
 }

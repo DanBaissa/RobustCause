@@ -2,6 +2,10 @@ fit_sc <- function(outcomes = NULL,
                    treated_unit = NULL,
                    treatment_start = NULL,
                    donors = NULL,
+                   predictors = NULL,
+                   predictor_weights = NULL,
+                   predictor_lambda = 1,
+                   predictor_scale = c("mad", "sd", "none"),
                    method = c("standard", "mm"),
                    run_placebos = FALSE,
                    maxit = 1000L,
@@ -10,6 +14,7 @@ fit_sc <- function(outcomes = NULL,
                    min_time_weight = 1e-8,
                    na.action = c("omit", "fail")) {
   method <- match.arg(method)
+  predictor_scale <- match.arg(predictor_scale)
   na.action <- match.arg(na.action)
 
   prepared <- sc_prepare_matrix(
@@ -17,6 +22,10 @@ fit_sc <- function(outcomes = NULL,
     treated_unit = treated_unit,
     treatment_start = treatment_start,
     donors = donors,
+    predictors = predictors,
+    predictor_weights = predictor_weights,
+    predictor_lambda = predictor_lambda,
+    predictor_scale = predictor_scale,
     na.action = na.action
   )
 
@@ -78,6 +87,7 @@ summary.robustcause_sc <- function(object, ...) {
     treated_unit = object$treated_unit,
     n_donors = length(object$donors),
     pre_rmspe = object$pre_rmspe,
+    predictor_rmse = object$predictor_rmse,
     post_mean_gap = mean(object$post_gaps),
     post_mean_abs_gap = mean(abs(object$post_gaps)),
     effective_donors = object$effective_donors,
@@ -85,11 +95,17 @@ summary.robustcause_sc <- function(object, ...) {
     converged = object$converged,
     iterations = object$iterations,
     weights = object$weights,
+    predictor_residuals = object$predictor_residuals,
     inference = object$inference
   )
   if (!is.null(object$robust_time_weights)) {
     out$mean_robust_time_weight <- mean(object$robust_time_weights)
     out$downweighted_periods <- object$downweighted_periods
+  }
+  if (!is.null(object$robust_predictor_weights) && length(object$robust_predictor_weights) > 0L) {
+    out$mean_robust_predictor_weight <- mean(object$robust_predictor_weights)
+    out$downweighted_predictors <- names(object$robust_predictor_weights)[object$robust_predictor_weights < 0.5]
+    out$robust_predictor_weights <- object$robust_predictor_weights
   }
   class(out) <- "summary.robustcause_sc"
   out
@@ -98,12 +114,19 @@ summary.robustcause_sc <- function(object, ...) {
 print.summary.robustcause_sc <- function(x, digits = max(3L, getOption("digits") - 3L), ...) {
   cat(sprintf("RobustCause synthetic control | Method: %s | Treated unit: %s\n\n", x$method, x$treated_unit))
   cat(sprintf("Pre-RMSPE: %s\n", format(signif(x$pre_rmspe, digits))))
+  if (is.finite(x$predictor_rmse)) {
+    cat(sprintf("Predictor RMSE: %s\n", format(signif(x$predictor_rmse, digits))))
+  }
   cat(sprintf("Post mean gap: %s\n", format(signif(x$post_mean_gap, digits))))
   cat(sprintf("Post mean abs gap: %s\n", format(signif(x$post_mean_abs_gap, digits))))
   cat(sprintf("Effective donors: %s\n", format(signif(x$effective_donors, digits))))
   cat(sprintf("Max donor weight: %s\n", format(signif(x$max_weight, digits))))
   cat("\nWeights:\n")
   print(round(x$weights, digits))
+  if (!is.null(x$robust_predictor_weights) && length(x$robust_predictor_weights) > 0L) {
+    cat("\nRobust predictor weights:\n")
+    print(round(x$robust_predictor_weights, digits))
+  }
   if (!is.null(x$inference)) {
     cat("\nPlacebo diagnostics:\n")
     cat(sprintf("  RMSPE ratio p-value: %s\n", format(signif(x$inference$placebo_p_value_rmspe_ratio, digits))))
