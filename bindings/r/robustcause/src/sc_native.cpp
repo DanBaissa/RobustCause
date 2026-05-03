@@ -109,6 +109,10 @@ extern "C" SEXP rc_r_fit_sc(SEXP treatedPreSEXP,
                             SEXP predictorTreatedSEXP,
                             SEXP predictorDonorsSEXP,
                             SEXP predictorWeightsSEXP) {
+  (void) predictorTreatedSEXP;
+  (void) predictorDonorsSEXP;
+  (void) predictorWeightsSEXP;
+
   arma::vec treated_pre = Rcpp::as<arma::vec>(treatedPreSEXP);
   arma::mat donors_pre = Rcpp::as<arma::mat>(donorsPreSEXP);
   arma::vec treated_post = Rcpp::as<arma::vec>(treatedPostSEXP);
@@ -138,6 +142,12 @@ extern "C" SEXP rc_r_fit_mm_sc(SEXP treatedPreSEXP,
                                SEXP predictorTreatedSEXP,
                                SEXP predictorDonorsSEXP,
                                SEXP predictorWeightsSEXP) {
+  (void) l1SmoothingSEXP;
+  (void) minScaleSEXP;
+  (void) predictorTreatedSEXP;
+  (void) predictorDonorsSEXP;
+  (void) predictorWeightsSEXP;
+
   arma::vec treated_pre = Rcpp::as<arma::vec>(treatedPreSEXP);
   arma::mat donors_pre = Rcpp::as<arma::mat>(donorsPreSEXP);
   arma::vec treated_post = Rcpp::as<arma::vec>(treatedPostSEXP);
@@ -193,12 +203,15 @@ extern "C" SEXP rc_r_fit_sc_placebos(SEXP outcomesSEXP,
                                      SEXP minScaleSEXP,
                                      SEXP minTimeWeightSEXP,
                                      SEXP useMmSEXP) {
+  (void) startupMaxitSEXP;
+  (void) l1SmoothingSEXP;
+  (void) minScaleSEXP;
+
   arma::mat outcomes = Rcpp::as<arma::mat>(outcomesSEXP);
   int treatment_start = Rcpp::as<int>(treatmentStartSEXP);
   int maxit = Rcpp::as<int>(maxitSEXP);
   double tol = Rcpp::as<double>(tolSEXP);
   double ridge = Rcpp::as<double>(ridgeSEXP);
-  int startup_maxit = Rcpp::as<int>(startupMaxitSEXP);
   int subproblem_maxit = Rcpp::as<int>(subproblemMaxitSEXP);
   double sub_tol = Rcpp::as<double>(subproblemTolSEXP);
   double tukey_c = Rcpp::as<double>(tukeyCSEXP);
@@ -207,6 +220,8 @@ extern "C" SEXP rc_r_fit_sc_placebos(SEXP outcomesSEXP,
 
   int n_units = outcomes.n_cols;
   int n_post = outcomes.n_rows - treatment_start + 1;
+  arma::mat all_pre = outcomes.rows(0, treatment_start - 2);
+  arma::mat all_post = outcomes.rows(treatment_start - 1, outcomes.n_rows - 1);
   arma::mat post_gap_matrix(n_units, n_post, arma::fill::zeros);
   arma::vec pre_rmspe(n_units), post_rmspe(n_units), ratio(n_units), avg_abs_gap(n_units);
 
@@ -214,10 +229,12 @@ extern "C" SEXP rc_r_fit_sc_placebos(SEXP outcomesSEXP,
     arma::uvec donor_idx(n_units - 1);
     int k = 0;
     for (int u = 0; u < n_units; ++u) if (u != j) donor_idx[k++] = u;
-    arma::vec y_pre = outcomes.submat(0, j, treatment_start - 2, j);
-    arma::mat x_pre = outcomes.submat(0, 0, treatment_start - 2, n_units - 1).cols(donor_idx);
-    arma::vec y_post = outcomes.submat(treatment_start - 1, j, outcomes.n_rows - 1, j);
-    arma::mat x_post = outcomes.submat(treatment_start - 1, 0, outcomes.n_rows - 1, n_units - 1).cols(donor_idx);
+
+    arma::vec y_pre = all_pre.col(j);
+    arma::mat x_pre = all_pre.cols(donor_idx);
+    arma::vec y_post = all_post.col(j);
+    arma::mat x_post = all_post.cols(donor_idx);
+
     arma::vec wt(y_pre.n_elem, arma::fill::ones);
     arma::vec w = fit_weighted_sc(y_pre, x_pre, wt, maxit, tol, ridge);
     if (use_mm) {
