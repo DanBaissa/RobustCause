@@ -2,7 +2,10 @@ run_sc_benchmark_once <- function(seed,
                                   methods = c("standard", "mm"),
                                   run_placebos = FALSE,
                                   return_fits = FALSE,
+                                  predictor_lambda = 1,
+                                  predictor_scale = c("mad", "sd", "none"),
                                   ...) {
+  predictor_scale <- match.arg(predictor_scale)
   sim <- simulate_sc_panel(seed = seed, ...)
   truth <- sim$truth
   true_weights <- truth$true_weights
@@ -14,6 +17,9 @@ run_sc_benchmark_once <- function(seed,
         outcomes = sim$outcomes,
         treated_unit = "treated",
         treatment_start = truth$treatment_start,
+        predictors = sim$predictors,
+        predictor_lambda = predictor_lambda,
+        predictor_scale = predictor_scale,
         method = method,
         run_placebos = run_placebos
       ),
@@ -37,6 +43,9 @@ run_sc_benchmark_once <- function(seed,
       base$avg_estimated_effect <- NA_real_
       base$avg_true_effect <- mean(true_post_effect)
       base$pre_rmspe <- NA_real_
+      base$predictor_rmse <- NA_real_
+      base$mean_robust_predictor_weight <- NA_real_
+      base$min_robust_predictor_weight <- NA_real_
       base$weight_rmse <- NA_real_
       base$weight_l1 <- NA_real_
       base$placebo_p_value_rmspe_ratio <- NA_real_
@@ -56,6 +65,9 @@ run_sc_benchmark_once <- function(seed,
     base$avg_estimated_effect <- mean(fit$post_gaps)
     base$avg_true_effect <- mean(true_post_effect)
     base$pre_rmspe <- fit$pre_rmspe
+    base$predictor_rmse <- fit$predictor_rmse
+    base$mean_robust_predictor_weight <- if (!is.null(fit$robust_predictor_weights) && length(fit$robust_predictor_weights) > 0L) mean(fit$robust_predictor_weights) else NA_real_
+    base$min_robust_predictor_weight <- if (!is.null(fit$robust_predictor_weights) && length(fit$robust_predictor_weights) > 0L) min(fit$robust_predictor_weights) else NA_real_
     base$weight_rmse <- sqrt(mean(weight_error^2))
     base$weight_l1 <- sum(abs(weight_error))
     base$placebo_p_value_rmspe_ratio <- if (!is.null(fit$inference)) fit$inference$placebo_p_value_rmspe_ratio else NA_real_
@@ -79,7 +91,10 @@ run_sc_benchmark_grid <- function(design,
                                   seed = 100000L,
                                   out_dir = NULL,
                                   chunk_id = NULL,
-                                  return_fits = FALSE) {
+                                  return_fits = FALSE,
+                                  predictor_lambda = 1,
+                                  predictor_scale = c("mad", "sd", "none")) {
+  predictor_scale <- match.arg(predictor_scale)
   if (!is.data.frame(design)) stop("`design` must be a data.frame.", call. = FALSE)
   if (is.null(design$design_id)) design$design_id <- seq_len(nrow(design))
 
@@ -101,7 +116,7 @@ run_sc_benchmark_grid <- function(design,
     row <- design[task$design_row, , drop = FALSE]
     args <- as.list(row[intersect(names(row), sim_args)])
     args <- lapply(args, function(x) x[[1]])
-    ans <- do.call(run_sc_benchmark_once, c(list(seed = task$seed, methods = methods, run_placebos = run_placebos, return_fits = return_fits), args))
+    ans <- do.call(run_sc_benchmark_once, c(list(seed = task$seed, methods = methods, run_placebos = run_placebos, return_fits = return_fits, predictor_lambda = predictor_lambda, predictor_scale = predictor_scale), args))
     ans$design_id <- row$design_id[[1]]
     ans$replication <- task$replication
     ans
