@@ -120,3 +120,72 @@ test_that("fit_sc carries predictors through placebo diagnostics", {
   expect_true("predictor_rmse" %in% names(fit$placebo$table))
   expect_true(all(is.finite(fit$placebo$table$predictor_rmse)))
 })
+
+test_that("fit_sc reports donor diagnostics and supports donor penalties", {
+  set.seed(654)
+  n_time <- 18
+  donor_1 <- rnorm(n_time)
+  donor_2 <- rnorm(n_time)
+  donor_3 <- rnorm(n_time)
+  donor_4 <- rnorm(n_time)
+  donor_4[1:10] <- donor_4[1:10] + 8
+  treated <- 0.6 * donor_1 + 0.4 * donor_2 + rnorm(n_time, sd = 0.05)
+  treated[12:18] <- treated[12:18] + 1
+  outcomes <- cbind(treated = treated, donor_1 = donor_1, donor_2 = donor_2, donor_3 = donor_3, donor_4 = donor_4)
+
+  fit_plain <- fit_sc(
+    outcomes,
+    treated_unit = "treated",
+    treatment_start = 12,
+    method = "mm"
+  )
+
+  fit_donor <- fit_sc(
+    outcomes,
+    treated_unit = "treated",
+    treatment_start = 12,
+    method = "mm",
+    robust_donors = TRUE,
+    donor_penalty_lambda = 1
+  )
+
+  expect_s3_class(fit_donor, "robustcause_sc")
+  expect_true(is.data.frame(fit_donor$donor_diagnostics))
+  expect_equal(nrow(fit_donor$donor_diagnostics), 4L)
+  expect_equal(length(fit_donor$robust_donor_weights), 4L)
+  expect_equal(length(fit_donor$donor_penalties), 4L)
+  expect_true(all(is.finite(fit_donor$robust_donor_weights)))
+  expect_true(all(is.finite(fit_donor$donor_penalties)))
+  expect_true(any(fit_donor$donor_penalties > 0))
+  expect_true(isTRUE(fit_donor$robust_donors))
+  expect_equal(sum(coef(fit_donor)), 1, tolerance = 1e-6)
+  expect_true(all(coef(fit_donor) >= 0))
+  expect_false(isTRUE(all.equal(as.numeric(coef(fit_plain)), as.numeric(coef(fit_donor)), tolerance = 1e-5)))
+})
+
+test_that("donor robustness carries through placebo diagnostics", {
+  set.seed(987)
+  n_time <- 14
+  donor_1 <- rnorm(n_time)
+  donor_2 <- rnorm(n_time)
+  donor_3 <- rnorm(n_time)
+  donor_3[1:8] <- donor_3[1:8] + 6
+  treated <- 0.5 * donor_1 + 0.5 * donor_2 + rnorm(n_time, sd = 0.05)
+  treated[10:14] <- treated[10:14] + 1
+  outcomes <- cbind(treated = treated, donor_1 = donor_1, donor_2 = donor_2, donor_3 = donor_3)
+
+  fit <- fit_sc(
+    outcomes,
+    treated_unit = "treated",
+    treatment_start = 10,
+    method = "mm",
+    robust_donors = TRUE,
+    donor_penalty_lambda = 1,
+    run_placebos = TRUE
+  )
+
+  expect_s3_class(fit, "robustcause_sc")
+  expect_true(is.data.frame(fit$placebo$table))
+  expect_true("min_robust_donor_weight" %in% names(fit$placebo$table))
+  expect_true(all(is.finite(fit$placebo$table$min_robust_donor_weight)))
+})
