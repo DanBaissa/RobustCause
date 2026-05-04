@@ -4,6 +4,11 @@ run_sc_benchmark_once <- function(seed,
                                   return_fits = FALSE,
                                   predictor_lambda = 1,
                                   predictor_scale = c("mad", "sd", "none"),
+                                  robust_donors = FALSE,
+                                  donor_penalty_lambda = 1,
+                                  donor_tukey_c = 4.685,
+                                  min_donor_weight = 1e-4,
+                                  max_donor_penalty = 1e4,
                                   ...) {
   predictor_scale <- match.arg(predictor_scale)
   sim <- simulate_sc_panel(seed = seed, ...)
@@ -21,6 +26,11 @@ run_sc_benchmark_once <- function(seed,
         predictor_lambda = predictor_lambda,
         predictor_scale = predictor_scale,
         method = method,
+        robust_donors = robust_donors,
+        donor_penalty_lambda = donor_penalty_lambda,
+        donor_tukey_c = donor_tukey_c,
+        min_donor_weight = min_donor_weight,
+        max_donor_penalty = max_donor_penalty,
         run_placebos = run_placebos
       ),
       error = function(e) e
@@ -29,6 +39,8 @@ run_sc_benchmark_once <- function(seed,
     base <- data.frame(
       seed = seed,
       method = method,
+      robust_donors = isTRUE(robust_donors),
+      donor_penalty_lambda = donor_penalty_lambda,
       status = if (inherits(fit, "error")) "error" else "ok",
       error_message = if (inherits(fit, "error")) conditionMessage(fit) else NA_character_,
       stringsAsFactors = FALSE
@@ -46,6 +58,9 @@ run_sc_benchmark_once <- function(seed,
       base$predictor_rmse <- NA_real_
       base$mean_robust_predictor_weight <- NA_real_
       base$min_robust_predictor_weight <- NA_real_
+      base$mean_robust_donor_weight <- NA_real_
+      base$min_robust_donor_weight <- NA_real_
+      base$max_donor_penalty_fit <- NA_real_
       base$weight_rmse <- NA_real_
       base$weight_l1 <- NA_real_
       base$placebo_p_value_rmspe_ratio <- NA_real_
@@ -68,6 +83,9 @@ run_sc_benchmark_once <- function(seed,
     base$predictor_rmse <- fit$predictor_rmse
     base$mean_robust_predictor_weight <- if (!is.null(fit$robust_predictor_weights) && length(fit$robust_predictor_weights) > 0L) mean(fit$robust_predictor_weights) else NA_real_
     base$min_robust_predictor_weight <- if (!is.null(fit$robust_predictor_weights) && length(fit$robust_predictor_weights) > 0L) min(fit$robust_predictor_weights) else NA_real_
+    base$mean_robust_donor_weight <- if (!is.null(fit$robust_donor_weights) && length(fit$robust_donor_weights) > 0L) mean(fit$robust_donor_weights) else NA_real_
+    base$min_robust_donor_weight <- if (!is.null(fit$robust_donor_weights) && length(fit$robust_donor_weights) > 0L) min(fit$robust_donor_weights) else NA_real_
+    base$max_donor_penalty_fit <- if (!is.null(fit$donor_penalties) && length(fit$donor_penalties) > 0L) max(fit$donor_penalties) else NA_real_
     base$weight_rmse <- sqrt(mean(weight_error^2))
     base$weight_l1 <- sum(abs(weight_error))
     base$placebo_p_value_rmspe_ratio <- if (!is.null(fit$inference)) fit$inference$placebo_p_value_rmspe_ratio else NA_real_
@@ -93,7 +111,12 @@ run_sc_benchmark_grid <- function(design,
                                   chunk_id = NULL,
                                   return_fits = FALSE,
                                   predictor_lambda = 1,
-                                  predictor_scale = c("mad", "sd", "none")) {
+                                  predictor_scale = c("mad", "sd", "none"),
+                                  robust_donors = FALSE,
+                                  donor_penalty_lambda = 1,
+                                  donor_tukey_c = 4.685,
+                                  min_donor_weight = 1e-4,
+                                  max_donor_penalty = 1e4) {
   predictor_scale <- match.arg(predictor_scale)
   if (!is.data.frame(design)) stop("`design` must be a data.frame.", call. = FALSE)
   if (is.null(design$design_id)) design$design_id <- seq_len(nrow(design))
@@ -116,7 +139,25 @@ run_sc_benchmark_grid <- function(design,
     row <- design[task$design_row, , drop = FALSE]
     args <- as.list(row[intersect(names(row), sim_args)])
     args <- lapply(args, function(x) x[[1]])
-    ans <- do.call(run_sc_benchmark_once, c(list(seed = task$seed, methods = methods, run_placebos = run_placebos, return_fits = return_fits, predictor_lambda = predictor_lambda, predictor_scale = predictor_scale), args))
+    ans <- do.call(
+      run_sc_benchmark_once,
+      c(
+        list(
+          seed = task$seed,
+          methods = methods,
+          run_placebos = run_placebos,
+          return_fits = return_fits,
+          predictor_lambda = predictor_lambda,
+          predictor_scale = predictor_scale,
+          robust_donors = robust_donors,
+          donor_penalty_lambda = donor_penalty_lambda,
+          donor_tukey_c = donor_tukey_c,
+          min_donor_weight = min_donor_weight,
+          max_donor_penalty = max_donor_penalty
+        ),
+        args
+      )
+    )
     ans$design_id <- row$design_id[[1]]
     ans$replication <- task$replication
     ans
