@@ -7,7 +7,7 @@ simulate_sc_panel <- function(n_donors = 20L,
                               noise_sd = 1,
                               treatment_effect = 1,
                               effect_shape = c("constant", "ramp", "delayed", "temporary", "none"),
-                              contamination = c("none", "treated_pre_spike", "donor_pre_spike", "treated_and_donor_pre_spike", "heavy_tails", "donor_pool_mismatch", "predictor_spike", "mixed_outcome_predictor"),
+                              contamination = c("none", "treated_pre_spike", "donor_pre_spike", "treated_and_donor_pre_spike", "heavy_tails", "donor_pool_mismatch", "predictor_spike", "mixed_outcome_predictor", "bad_donor_pre_path", "bad_donor_predictors", "bad_donor_mixed"),
                               contamination_rate = 0.05,
                               contamination_magnitude = 8,
                               donor_mismatch_strength = 0,
@@ -16,6 +16,7 @@ simulate_sc_panel <- function(n_donors = 20L,
                               predictor_noise_sd = 0.25,
                               predictor_contamination_rate = contamination_rate,
                               predictor_contamination_magnitude = contamination_magnitude,
+                              bad_donor_rate = 0.10,
                               seed = NULL) {
   effect_shape <- match.arg(effect_shape)
   contamination <- match.arg(contamination)
@@ -100,8 +101,37 @@ simulate_sc_panel <- function(n_donors = 20L,
     picked
   }
 
+  pick_bad_donors <- function() {
+    n_bad <- min(n_donors, max(1L, ceiling(bad_donor_rate * n_donors)))
+    sort(sample(seq_len(n_donors), n_bad))
+  }
+
+  contaminate_bad_donor_paths <- function(bad_donors) {
+    bad_cols <- bad_donors + 1L
+    pre_shift <- matrix(stats::rnorm(n_pre * length(bad_cols), sd = contamination_magnitude), nrow = n_pre)
+    drift <- seq(0, contamination_magnitude, length.out = n_pre)
+    for (jj in seq_along(bad_cols)) {
+      outcomes[seq_len(n_pre), bad_cols[jj]] <<- outcomes[seq_len(n_pre), bad_cols[jj]] + pre_shift[, jj] + sample(c(-1, 1), 1) * drift
+    }
+    data.frame(row = rep(seq_len(n_pre), times = length(bad_cols)), col = rep(bad_cols, each = n_pre), shock = NA_real_)
+  }
+
+  contaminate_bad_donor_predictors <- function(bad_donors) {
+    if (is.null(predictors) || nrow(predictors) == 0L) {
+      return(data.frame(row = integer(), col = integer(), shock = numeric()))
+    }
+    bad_cols <- bad_donors + 1L
+    rows <- seq_len(nrow(predictors))
+    shock <- matrix(stats::rnorm(length(rows) * length(bad_cols), sd = predictor_contamination_magnitude), nrow = length(rows))
+    for (jj in seq_along(bad_cols)) {
+      predictors[rows, bad_cols[jj]] <<- predictors[rows, bad_cols[jj]] + shock[, jj]
+    }
+    data.frame(row = rep(rows, times = length(bad_cols)), col = rep(bad_cols, each = length(rows)), shock = as.numeric(shock))
+  }
+
   contamination_info <- data.frame(row = integer(), col = integer(), shock = numeric())
   predictor_contamination_info <- data.frame(row = integer(), col = integer(), shock = numeric())
+  bad_donor_info <- data.frame(donor = character(), donor_col = integer())
   if (identical(contamination, "treated_pre_spike")) contamination_info <- add_spikes(seq_len(n_pre), 1L)
   if (identical(contamination, "donor_pre_spike")) contamination_info <- add_spikes(seq_len(n_pre), seq.int(2L, n_donors + 1L))
   if (identical(contamination, "treated_and_donor_pre_spike")) contamination_info <- add_spikes(seq_len(n_pre), seq_len(n_donors + 1L))
@@ -110,6 +140,16 @@ simulate_sc_panel <- function(n_donors = 20L,
   if (identical(contamination, "mixed_outcome_predictor")) {
     contamination_info <- add_spikes(seq_len(n_pre), seq_len(n_donors + 1L))
     predictor_contamination_info <- add_predictor_spikes()
+  }
+  if (contamination %in% c("bad_donor_pre_path", "bad_donor_predictors", "bad_donor_mixed")) {
+    bad_donors <- pick_bad_donors()
+    bad_donor_info <- data.frame(donor = colnames(donors)[bad_donors], donor_col = bad_donors + 1L)
+    if (contamination %in% c("bad_donor_pre_path", "bad_donor_mixed")) {
+      contamination_info <- contaminate_bad_donor_paths(bad_donors)
+    }
+    if (contamination %in% c("bad_donor_predictors", "bad_donor_mixed")) {
+      predictor_contamination_info <- contaminate_bad_donor_predictors(bad_donors)
+    }
   }
 
   panel <- data.frame(unit = rep(colnames(outcomes), each = n_time), time = rep(seq_len(n_time), times = ncol(outcomes)), outcome = as.numeric(outcomes))
@@ -122,8 +162,9 @@ simulate_sc_panel <- function(n_donors = 20L,
     predictors_clean = predictors_clean,
     contamination_info = contamination_info,
     predictor_contamination_info = predictor_contamination_info,
+    bad_donor_info = bad_donor_info,
     truth = list(true_weights = true_weights, treatment_path = treatment_path, treatment_effect_post = post_effect, treatment_start = n_pre + 1L),
-    design = list(n_donors = n_donors, n_pre = n_pre, n_post = n_post, n_factors = n_factors, true_sparsity = true_sparsity, noise_sd = noise_sd, treatment_effect = treatment_effect, effect_shape = effect_shape, contamination = contamination, contamination_rate = contamination_rate, contamination_magnitude = contamination_magnitude, donor_mismatch_strength = donor_mismatch_strength, n_predictors = n_predictors, predictor_noise_sd = predictor_noise_sd, predictor_contamination_rate = predictor_contamination_rate, predictor_contamination_magnitude = predictor_contamination_magnitude)
+    design = list(n_donors = n_donors, n_pre = n_pre, n_post = n_post, n_factors = n_factors, true_sparsity = true_sparsity, noise_sd = noise_sd, treatment_effect = treatment_effect, effect_shape = effect_shape, contamination = contamination, contamination_rate = contamination_rate, contamination_magnitude = contamination_magnitude, donor_mismatch_strength = donor_mismatch_strength, n_predictors = n_predictors, predictor_noise_sd = predictor_noise_sd, predictor_contamination_rate = predictor_contamination_rate, predictor_contamination_magnitude = predictor_contamination_magnitude, bad_donor_rate = bad_donor_rate)
   ), class = "robustcause_sc_simulation")
 }
 

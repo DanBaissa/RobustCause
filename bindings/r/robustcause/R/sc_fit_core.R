@@ -1,4 +1,4 @@
-sc_name_native_result <- function(fit, prepared) {
+sc_name_native_result <- function(fit, prepared, donor_diagnostics = NULL, donor_penalties = NULL) {
   fit$weights <- stats::setNames(as.numeric(fit$weights), prepared$donors)
 
   actual <- sc_compute_actual_fit(fit$weights, prepared)
@@ -27,6 +27,13 @@ sc_name_native_result <- function(fit, prepared) {
     }
   }
 
+  if (is.null(donor_diagnostics)) donor_diagnostics <- sc_empty_donor_diagnostics()
+  if (is.null(donor_penalties)) donor_penalties <- numeric()
+
+  fit$donor_diagnostics <- donor_diagnostics
+  fit$donor_scores <- stats::setNames(donor_diagnostics$donor_score, donor_diagnostics$donor)
+  fit$robust_donor_weights <- stats::setNames(donor_diagnostics$robust_donor_weight, donor_diagnostics$donor)
+  fit$donor_penalties <- stats::setNames(as.numeric(donor_penalties), names(donor_penalties))
   fit$has_predictors <- length(prepared$predictor_names) > 0L
   fit$predictor_lambda <- prepared$predictor_lambda
   fit
@@ -72,8 +79,31 @@ sc_augmented_pre_data <- function(prepared) {
 sc_fit_standard_core <- function(prepared,
                                  maxit = 1000L,
                                  tol = 1e-8,
-                                 ridge = 1e-10) {
+                                 ridge = 1e-10,
+                                 robust_donors = FALSE,
+                                 donor_penalty_lambda = 1,
+                                 donor_tukey_c = 4.685,
+                                 min_donor_weight = 1e-4,
+                                 max_donor_penalty = 1e4) {
   aug <- sc_augmented_pre_data(prepared)
+  donor_diagnostics <- sc_compute_donor_diagnostics(
+    y = aug$y,
+    x = aug$x,
+    donor_names = prepared$donors,
+    donor_tukey_c = donor_tukey_c,
+    min_donor_weight = min_donor_weight
+  )
+  donor_penalties <- sc_donor_penalties(
+    donor_diagnostics = donor_diagnostics,
+    robust_donors = robust_donors,
+    donor_penalty_lambda = donor_penalty_lambda,
+    max_donor_penalty = max_donor_penalty
+  )
+  aug <- sc_append_donor_penalty_rows(
+    y = aug$y,
+    x = aug$x,
+    donor_penalties = donor_penalties
+  )
   empty_post <- matrix(numeric(), nrow = 0L, ncol = ncol(prepared$donors_pre))
 
   fit <- .Call(
@@ -90,7 +120,7 @@ sc_fit_standard_core <- function(prepared,
     prepared$predictor_weights
   )
 
-  sc_name_native_result(fit, prepared)
+  sc_name_native_result(fit, prepared, donor_diagnostics, donor_penalties)
 }
 
 sc_fit_mm_core <- function(prepared,
@@ -103,8 +133,31 @@ sc_fit_mm_core <- function(prepared,
                            tukey_c = 4.685,
                            min_scale = 1e-8,
                            ridge = 1e-10,
-                           min_time_weight = 1e-8) {
+                           min_time_weight = 1e-8,
+                           robust_donors = FALSE,
+                           donor_penalty_lambda = 1,
+                           donor_tukey_c = 4.685,
+                           min_donor_weight = 1e-4,
+                           max_donor_penalty = 1e4) {
   aug <- sc_augmented_pre_data(prepared)
+  donor_diagnostics <- sc_compute_donor_diagnostics(
+    y = aug$y,
+    x = aug$x,
+    donor_names = prepared$donors,
+    donor_tukey_c = donor_tukey_c,
+    min_donor_weight = min_donor_weight
+  )
+  donor_penalties <- sc_donor_penalties(
+    donor_diagnostics = donor_diagnostics,
+    robust_donors = robust_donors,
+    donor_penalty_lambda = donor_penalty_lambda,
+    max_donor_penalty = max_donor_penalty
+  )
+  aug <- sc_append_donor_penalty_rows(
+    y = aug$y,
+    x = aug$x,
+    donor_penalties = donor_penalties
+  )
   empty_post <- matrix(numeric(), nrow = 0L, ncol = ncol(prepared$donors_pre))
 
   fit <- .Call(
@@ -128,7 +181,7 @@ sc_fit_mm_core <- function(prepared,
     prepared$predictor_weights
   )
 
-  sc_name_native_result(fit, prepared)
+  sc_name_native_result(fit, prepared, donor_diagnostics, donor_penalties)
 }
 
 sc_fit_one_from_prepared <- function(prepared,
@@ -138,7 +191,12 @@ sc_fit_one_from_prepared <- function(prepared,
                                     tukey_c = 4.685,
                                     min_time_weight = 1e-8,
                                     tol = 1e-8,
-                                    ridge = 1e-10) {
+                                    ridge = 1e-10,
+                                    robust_donors = FALSE,
+                                    donor_penalty_lambda = 1,
+                                    donor_tukey_c = 4.685,
+                                    min_donor_weight = 1e-4,
+                                    max_donor_penalty = 1e4) {
   method <- match.arg(method)
   if (identical(method, "mm")) {
     sc_fit_mm_core(
@@ -148,14 +206,24 @@ sc_fit_one_from_prepared <- function(prepared,
       tukey_c = tukey_c,
       min_time_weight = min_time_weight,
       tol = tol,
-      ridge = ridge
+      ridge = ridge,
+      robust_donors = robust_donors,
+      donor_penalty_lambda = donor_penalty_lambda,
+      donor_tukey_c = donor_tukey_c,
+      min_donor_weight = min_donor_weight,
+      max_donor_penalty = max_donor_penalty
     )
   } else {
     sc_fit_standard_core(
       prepared = prepared,
       maxit = maxit,
       tol = tol,
-      ridge = ridge
+      ridge = ridge,
+      robust_donors = robust_donors,
+      donor_penalty_lambda = donor_penalty_lambda,
+      donor_tukey_c = donor_tukey_c,
+      min_donor_weight = min_donor_weight,
+      max_donor_penalty = max_donor_penalty
     )
   }
 }

@@ -7,6 +7,11 @@ fit_sc <- function(outcomes = NULL,
                    predictor_lambda = 1,
                    predictor_scale = c("mad", "sd", "none"),
                    method = c("standard", "mm"),
+                   robust_donors = FALSE,
+                   donor_penalty_lambda = 1,
+                   donor_tukey_c = 4.685,
+                   min_donor_weight = 1e-4,
+                   max_donor_penalty = 1e4,
                    run_placebos = FALSE,
                    maxit = 1000L,
                    mm_max_iter = 25L,
@@ -35,10 +40,17 @@ fit_sc <- function(outcomes = NULL,
     maxit = maxit,
     mm_max_iter = mm_max_iter,
     tukey_c = tukey_c,
-    min_time_weight = min_time_weight
+    min_time_weight = min_time_weight,
+    robust_donors = robust_donors,
+    donor_penalty_lambda = donor_penalty_lambda,
+    donor_tukey_c = donor_tukey_c,
+    min_donor_weight = min_donor_weight,
+    max_donor_penalty = max_donor_penalty
   )
 
   fit$method <- method
+  fit$robust_donors <- isTRUE(robust_donors)
+  fit$donor_penalty_lambda <- donor_penalty_lambda
   fit$treated_unit <- prepared$treated_unit
   fit$donors <- prepared$donors
   fit$pre_periods <- prepared$pre_periods
@@ -63,7 +75,12 @@ fit_sc <- function(outcomes = NULL,
       maxit = maxit,
       mm_max_iter = mm_max_iter,
       tukey_c = tukey_c,
-      min_time_weight = min_time_weight
+      min_time_weight = min_time_weight,
+      robust_donors = robust_donors,
+      donor_penalty_lambda = donor_penalty_lambda,
+      donor_tukey_c = donor_tukey_c,
+      min_donor_weight = min_donor_weight,
+      max_donor_penalty = max_donor_penalty
     )
     fit$inference <- list(
       placebo_p_value_rmspe_ratio = fit$placebo$placebo_p_value_rmspe_ratio,
@@ -84,6 +101,8 @@ summary.robustcause_sc <- function(object, ...) {
   out <- list(
     call = object$call,
     method = object$method,
+    robust_donors = object$robust_donors,
+    donor_penalty_lambda = object$donor_penalty_lambda,
     treated_unit = object$treated_unit,
     n_donors = length(object$donors),
     pre_rmspe = object$pre_rmspe,
@@ -96,6 +115,10 @@ summary.robustcause_sc <- function(object, ...) {
     iterations = object$iterations,
     weights = object$weights,
     predictor_residuals = object$predictor_residuals,
+    donor_diagnostics = object$donor_diagnostics,
+    donor_scores = object$donor_scores,
+    robust_donor_weights = object$robust_donor_weights,
+    donor_penalties = object$donor_penalties,
     inference = object$inference
   )
   if (!is.null(object$robust_time_weights)) {
@@ -106,6 +129,11 @@ summary.robustcause_sc <- function(object, ...) {
     out$mean_robust_predictor_weight <- mean(object$robust_predictor_weights)
     out$downweighted_predictors <- names(object$robust_predictor_weights)[object$robust_predictor_weights < 0.5]
     out$robust_predictor_weights <- object$robust_predictor_weights
+  }
+  if (!is.null(object$robust_donor_weights) && length(object$robust_donor_weights) > 0L) {
+    out$mean_robust_donor_weight <- mean(object$robust_donor_weights)
+    out$min_robust_donor_weight <- min(object$robust_donor_weights)
+    out$downweighted_donors <- names(object$robust_donor_weights)[object$robust_donor_weights < 0.5]
   }
   class(out) <- "summary.robustcause_sc"
   out
@@ -121,11 +149,19 @@ print.summary.robustcause_sc <- function(x, digits = max(3L, getOption("digits")
   cat(sprintf("Post mean abs gap: %s\n", format(signif(x$post_mean_abs_gap, digits))))
   cat(sprintf("Effective donors: %s\n", format(signif(x$effective_donors, digits))))
   cat(sprintf("Max donor weight: %s\n", format(signif(x$max_weight, digits))))
+  if (isTRUE(x$robust_donors)) {
+    cat(sprintf("Robust donor penalties: on | lambda: %s\n", format(signif(x$donor_penalty_lambda, digits))))
+  }
   cat("\nWeights:\n")
   print(round(x$weights, digits))
   if (!is.null(x$robust_predictor_weights) && length(x$robust_predictor_weights) > 0L) {
     cat("\nRobust predictor weights:\n")
     print(round(x$robust_predictor_weights, digits))
+  }
+  if (!is.null(x$robust_donor_weights) && length(x$robust_donor_weights) > 0L) {
+    cat("\nLowest robust donor weights:\n")
+    donor_order <- order(x$robust_donor_weights)
+    print(round(x$robust_donor_weights[head(donor_order, min(5L, length(donor_order)))], digits))
   }
   if (!is.null(x$inference)) {
     cat("\nPlacebo diagnostics:\n")
