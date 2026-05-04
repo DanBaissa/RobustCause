@@ -3,7 +3,12 @@ sc_run_placebos <- function(prepared,
                             maxit = 1000L,
                             mm_max_iter = 25L,
                             tukey_c = 4.685,
-                            min_time_weight = 1e-8) {
+                            min_time_weight = 1e-8,
+                            robust_donors = FALSE,
+                            donor_penalty_lambda = 1,
+                            donor_tukey_c = 4.685,
+                            min_donor_weight = 1e-4,
+                            max_donor_penalty = 1e4) {
   method <- match.arg(method)
   outcomes <- prepared$outcomes
   n_units <- ncol(outcomes)
@@ -34,7 +39,12 @@ sc_run_placebos <- function(prepared,
       maxit = maxit,
       mm_max_iter = mm_max_iter,
       tukey_c = tukey_c,
-      min_time_weight = min_time_weight
+      min_time_weight = min_time_weight,
+      robust_donors = robust_donors,
+      donor_penalty_lambda = donor_penalty_lambda,
+      donor_tukey_c = donor_tukey_c,
+      min_donor_weight = min_donor_weight,
+      max_donor_penalty = max_donor_penalty
     )
     post_gap_matrix[j, ] <- as.numeric(fit$post_gaps)
     post_rmspe <- sc_rmspe(fit$post_gaps)
@@ -47,6 +57,7 @@ sc_run_placebos <- function(prepared,
       rmspe_ratio = post_rmspe / pre_rmspe,
       avg_abs_post_gap = mean(abs(fit$post_gaps)),
       predictor_rmse = fit$predictor_rmse,
+      min_robust_donor_weight = if (length(fit$robust_donor_weights) > 0L) min(fit$robust_donor_weights) else NA_real_,
       stringsAsFactors = FALSE
     )
   }
